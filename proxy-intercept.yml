@@ -1,0 +1,12 @@
+### YamlMime:Sample
+sample:
+- name: Proxy interception based on Windows Filtering Platform Traffic Inspection Sample
+  description: Demonstrates the traffic inspection capabilities of the Windows Filtering Platform (WFP).
+  generateZip: true
+  preserveParentHierarchy: true
+  author: Markus Moeller
+  languages:
+  - cpp
+  technologies:
+  - windows
+  vssolution: proxy-intercept.sln

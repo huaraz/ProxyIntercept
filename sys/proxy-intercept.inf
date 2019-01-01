@@ -1,0 +1,63 @@
+;;;
+;;; Copyright (c) Microsoft Corporation. All rights reserved
+;;;
+;;; Abstract:
+;;;    Traffic proxy-intercept Callout sample driver install configuration.
+;;;
+
+[Version]
+    Signature   = "$Windows NT$"
+    Class       = WFPCALLOUTS
+    ClassGuid   = {949FFE7A-2012-4679-988C-2522A2FBD590}
+    Provider    = %ProviderString%
+    CatalogFile = proxy-intercept.cat
+    DriverVer   = 11/24/2014,14.24.55.836
+
+[SourceDisksNames]
+   1 = %proxyInterceptDisk%,,,""
+
+[SourceDisksFiles]
+   proxy-intercept.sys = 1,,
+
+[DestinationDirs]
+    DefaultDestDir      = 12                                               ; %WinDir%\System32\Drivers
+    proxyIntercept.DriverFiles = 12                                               ; %WinDir%\System32\Drivers
+
+[DefaultInstall]
+    OptionDesc = %proxyInterceptServiceDesc%
+    CopyFiles  = proxyIntercept.DriverFiles
+
+[DefaultInstall.Services]
+    AddService = %proxyInterceptServiceName%,,proxyIntercept.Service
+
+[DefaultUninstall]
+    DelFiles = proxyIntercept.DriverFiles
+
+[DefaultUninstall.Services]
+    DelService = %proxyInterceptServiceName%,0x200                                ; SPSVCINST_STOPSERVICE
+    DelReg     = proxyIntercept.DelRegistry
+
+[proxyIntercept.DriverFiles]
+    proxy-intercept.sys,,,0x00000040                                               ; COPYFLG_OVERWRITE_OLDER_ONLY
+
+[proxyIntercept.Service]
+    DisplayName   = %proxyInterceptServiceName%
+    Description   = %proxyInterceptServiceDesc%
+    ServiceType   = 1                                                      ; SERVICE_KERNEL_DRIVER
+    StartType     = 3                                                      ; SERVICE_DEMAND_START
+    ErrorControl  = 1                                                      ; SERVICE_ERROR_NORMAL
+    ServiceBinary = %12%\proxy-intercept.sys                                       ; %WinDir%\System32\Drivers\proxy-intercept.sys
+    AddReg        = proxyIntercept.AddRegistry
+
+[proxyIntercept.AddRegistry]
+    HKR,"Parameters","BlockTraffic",0x00010001,"0"                         ; FLG_ADDREG_TYPE_DWORD
+    HKR,"Parameters","RemoteAddressToProxyIntercept",0x00000000,"192.168.1.29"        ; FLG_ADDREG_TYPE_SZ
+
+[proxyIntercept.DelRegistry]
+    HKR,"Parameters",,,
+
+[Strings]
+    ProviderString     = "TODO-Set-Provider"
+	proxyInterceptDisk        = "Traffic proxy-intercept Installation Disk"
+    proxyInterceptServiceDesc = "Traffic proxy-intercept Callout Driver"
+    proxyInterceptServiceName = "proxyIntercept"
