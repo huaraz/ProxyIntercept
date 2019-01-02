@@ -69,3 +69,13 @@ This is still incomplete (fails to copy data of packets) and the intention is as
 1) When an Outbound packet is intercepted and matches the registry IP, check the SYN and ACK flags and if SYN open a new connection to a proxy.
 2) If Outbound packet matches the registry IP and has only an ACK flag it is part of a session and will be send ( after proxy type dependant wrapping ) to the proxy and not re-injected.
 3) proxy responses will be injected as new Inbound traffic (after unwrapping)
+
+Install by rightclick on proxy-intercept.inf file and select Install ( as Administrator )
+
+To install a DefaultInstall section from a device installation application, use the following call to InstallHinfSection:
+
+InstallHinfSection(NULL,NULL,TEXT("DefaultInstall 132 path-to-inf\infname.inf"),0); 
+
+For more information about InstallHinfSection, see the Microsoft Windows SDK documentation.
+
+Ref: https://docs.microsoft.com/en-gb/windows-hardware/drivers/install/inf-defaultinstall-section

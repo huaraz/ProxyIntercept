@@ -37,6 +37,7 @@ Environment:
 
 #include "proxy-intercept.h"
 #include "utils.h"
+#include "IPHeader.h"
 
 #if(NTDDI_VERSION >= NTDDI_WIN7)
 
@@ -1033,7 +1034,20 @@ LogPacket(
 						// Data is contiguous i.e. DataPointer points to the Data
 						memcpy(&DataBuffer, DataPointer, DataLength);
 					}
-					for (UINT i = 0; i < DataLength; i++) {
+					UINT DataStart = 0;
+					if (packet->direction == FWP_DIRECTION_OUTBOUND) {
+						// Outbound seems to have still the UDP/TCP header info included
+						switch (packet->protocol) {
+						case 17:
+							DataStart = sizeof(UDP_HDR);
+							break;
+						case 6:
+							DataStart = sizeof(TCP_HDR);
+							break;
+						}
+					}
+					DbgPrint("ProxyIntercept: Data start: %d\n", DataStart);
+					for (UINT i = DataStart; i < DataLength; i++) {
 						DbgPrint("ProxyIntercept: i:%d x%02x '%c'\n", i, DataBuffer[i],isprint(DataBuffer[i]) ? DataBuffer[i] : ' ');
 					}
 			        DataBuffer[DataLength] = 0;
@@ -1046,7 +1060,7 @@ LogPacket(
 		BufferListCount++;
 	}
 	//
-	// Need to work out if IP and Transport head should be part of the data
+	// Need to work out if IP and Transport header should be part of the data
 	// It seems different for inbound vs. outbound 
 	//
 

@@ -11,8 +11,7 @@
     ClassGuid   = {949FFE7A-2012-4679-988C-2522A2FBD590}
     Provider    = %ProviderString%
     CatalogFile = proxy-intercept.cat
-    DriverVer   = 11/24/2014,14.24.55.836
-
+    DriverVer   = 01/02/2019,0.0.0.1
 [SourceDisksNames]
    1 = %proxyInterceptDisk%,,,""
 
@@ -57,7 +56,7 @@
     HKR,"Parameters",,,
 
 [Strings]
-    ProviderString     = "TODO-Set-Provider"
+    ProviderString     = "MM"
 	proxyInterceptDisk        = "Traffic proxy-intercept Installation Disk"
     proxyInterceptServiceDesc = "Traffic proxy-intercept Callout Driver"
     proxyInterceptServiceName = "proxyIntercept"
