@@ -961,7 +961,7 @@ LogPacket(
 	size_t   BufferCount = 0;
 	size_t   BufferListCount = 0;
 	CHAR     DataBuffer[BUFFER_SIZE];
-	PVOID    GetStatus = NULL;
+	PVOID    DataPointer = NULL;
 
 	memset(&DataBuffer, 0, BUFFER_SIZE);
 	
@@ -1005,12 +1005,33 @@ LogPacket(
 			DataOffset = NET_BUFFER_DATA_OFFSET(nB);
 			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d \n", DataLength,DataOffset);
 			if (DataLength) {
-				// assume for now only one buffer despite loop 
-				GetStatus = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
-				DbgPrint("ProxyIntercept: GetStatus %p, DataBuffer %p\n",GetStatus ? GetStatus : 0, &DataBuffer);
-				if ( GetStatus ) {
-					if (GetStatus != &DataBuffer) {
-						memcpy(&DataBuffer, GetStatus, DataLength);
+				//
+				// assume for now only one buffer despite loop !
+				//
+				// NdisGetDataBuffer returns a pointer to the start of the contiguous data or 
+				// it returns NULL.
+				//
+				// If the DataLength member of the NET_BUFFER_DATA structure in the NET_BUFFER 
+				// structure that the NetBuffer parameter points to is less than the value in 
+				// the BytesNeeded parameter, the return value is NULL.
+				//
+				// If the requested data in the buffer is contiguous, the return value is a 
+				// pointer to a location that NDIS provides.
+				//
+				// If the data is not contiguous, NDIS uses the Storage parameter as follows :
+				//
+				//  If the Storage parameter is non - NULL, NDIS copies the data to the buffer 
+				//     at Storage. The return value is the pointer passed to the Storage parameter.
+				//	If the Storage parameter is NULL, the return value is NULL.
+				//
+				//	The return value can also be NULL due to a low resource condition where a data buffer cannot be mapped.This may occur even if the data is contiguous or the Storage parameter is non - NULL.
+				//
+				DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
+				DbgPrint("ProxyIntercept: DataPointer %p, DataBuffer %p\n",DataPointer ? DataPointer : 0, &DataBuffer);
+				if ( DataPointer ) {
+					if (DataPointer != &DataBuffer) {
+						// Data is contiguous i.e. DataPointer points to the Data
+						memcpy(&DataBuffer, DataPointer, DataLength);
 					}
 					for (UINT i = 0; i < DataLength; i++) {
 						DbgPrint("ProxyIntercept: i:%d x%02x '%c'\n", i, DataBuffer[i],isprint(DataBuffer[i]) ? DataBuffer[i] : ' ');
@@ -1024,8 +1045,12 @@ LogPacket(
 		nBL = NET_BUFFER_LIST_NEXT_NBL(nBL);
 		BufferListCount++;
 	}
+	//
+	// Need to work out if IP and Transport head should be part of the data
+	// It seems different for inbound vs. outbound 
+	//
 
-	
+
 
 	// or L"\\SystemRoot\\example.txt"
 	RtlInitUnicodeString(&uniName, L"\\DosDevices\\C:\\Temp\\trace.txt");
