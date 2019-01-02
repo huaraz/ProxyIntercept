@@ -703,7 +703,7 @@ TLProxyInterceptTransportClassify(
 /* ++
 
    This is the classifyFn function for the Transport (v4 and v6) callout.
-   packets (inbound or outbound) are ueued to the packet queue to be processed 
+   packets (inbound or outbound) are queued to the packet queue to be processed 
    by the worker thread.
 
 -- */
@@ -961,33 +961,61 @@ LogPacket(
 	size_t   BufferCount = 0;
 	size_t   BufferListCount = 0;
 	CHAR     DataBuffer[BUFFER_SIZE];
-	CHAR     HexBuffer[3*BUFFER_SIZE];
 	PVOID    GetStatus = NULL;
 
 	memset(&DataBuffer, 0, BUFFER_SIZE);
-	HexBuffer[0] = 'x';
-	HexBuffer[1] = 'f';
-	HexBuffer[2] = 'f';
-	HexBuffer[3] = 0;
+	
+	if (!packet) {
+		DbgPrint("ProxyIntercept: Null packet\n");
+		return status;
+	}
+	if (packet->protocol == 6 || packet->protocol == 17) {
+		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
+			packet->ipHeaderSize,
+			packet->transportHeaderSize,
+			packet->direction ? "Inbound" : "Outbound",
+			packet->type,
+			RtlUshortByteSwap(packet->localPort),
+			RtlUshortByteSwap(packet->remotePort),
+			packet->protocol,
+			DataLength,
+			BufferListCount,
+			BufferCount
+		);
+	}
+	else {
+		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
+			packet->ipHeaderSize,
+			packet->transportHeaderSize,
+			packet->direction ? "Inbound" : "Outbound",
+			packet->type,
+			RtlUshortByteSwap(packet->localPort),
+			RtlUshortByteSwap(packet->remotePort),
+			packet->protocol,
+			DataLength,
+			BufferListCount,
+			BufferCount
+		);
+	}
 
-    while (nBL) {
+	while (nBL) {
 		NET_BUFFER* nB = NET_BUFFER_LIST_FIRST_NB(nBL);
 		while (nB) {
 			DataLength = DataLength + NET_BUFFER_DATA_LENGTH(nB);
 			DataOffset = NET_BUFFER_DATA_OFFSET(nB);
+			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d \n", DataLength,DataOffset);
 			if (DataLength) {
 				// assume for now only one buffer despite loop 
-				GetStatus = NdisGetDataBuffer(nB, (ULONG)DataLength, 0, 1, 0);
+				GetStatus = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
+				DbgPrint("ProxyIntercept: GetStatus %p, DataBuffer %p\n",GetStatus ? GetStatus : 0, &DataBuffer);
 				if ( GetStatus ) {
-					memcpy(&DataBuffer, GetStatus, DataLength); 
-					// convert to hex to print as string
-					UINT j = 0;
+					if (GetStatus != &DataBuffer) {
+						memcpy(&DataBuffer, GetStatus, DataLength);
+					}
 					for (UINT i = 0; i < DataLength; i++) {
-						_snprintf_s(&HexBuffer[j], 4, 4, "x%02x", DataBuffer[i]);
-						j = j + 3;
+						DbgPrint("ProxyIntercept: i:%d x%02x '%c'\n", i, DataBuffer[i],isprint(DataBuffer[i]) ? DataBuffer[i] : ' ');
 					}
 			        DataBuffer[DataLength] = 0;
-					HexBuffer[j] = 0;
 				}
 			}
 			nB = NET_BUFFER_NEXT_NB(nB);
@@ -1025,7 +1053,7 @@ LogPacket(
 		if (packet) {
 			if (packet->protocol == 6 || packet->protocol == 17) {
 				status = RtlStringCbPrintfA(buffer, sizeof(buffer),
-					"IP header size ; %d, Transport header size ; %d, Direction ; %s, Packet Type ; %d, Local port ; %d, Remote port ; %d, Protocol ; %d, Length ; %d, Buffer List count ; %d, Buffer count ; %d, DATA ; %s\r\n",
+					"IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
 					packet->ipHeaderSize,
 					packet->transportHeaderSize,
 					packet->direction ? "Inbound" : "Outbound",
@@ -1035,13 +1063,12 @@ LogPacket(
 					packet->protocol,
 					DataLength,
 					BufferListCount,
-					BufferCount,
-					HexBuffer
+					BufferCount
 				);
 			}
 			else {
 				status = RtlStringCbPrintfA(buffer, sizeof(buffer),
-					"IP header size ; %d, Transport header size ; %d, Direction ; %s, Packet Type ; %d, ICMP Type ; %d, ICMP Code ; %d, Protocol ; %d, Length ; %d, Buffer List count ; %d, Buffer count ; %d, DATA ; %s\r\n",
+					"IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
 					packet->ipHeaderSize,
 					packet->transportHeaderSize, 
 					packet->direction ? "Inbound" : "Outbound",
@@ -1051,11 +1078,11 @@ LogPacket(
 					packet->protocol,
 					DataLength,
 					BufferListCount,
-					BufferCount,
-					HexBuffer
+					BufferCount
 				);
 			}
 		}
+
 		if (NT_SUCCESS(status)) {
 			status = RtlStringCbLengthA(buffer, sizeof(buffer), &cb);
 			if (NT_SUCCESS(status)) {
