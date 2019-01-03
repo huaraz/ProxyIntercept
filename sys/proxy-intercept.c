@@ -963,6 +963,9 @@ LogPacket(
 	size_t   BufferListCount = 0;
 	CHAR     DataBuffer[BUFFER_SIZE];
 	PVOID    DataPointer = NULL;
+	PTCP_HDR tcp_header = NULL;
+	UINT16   tcp_data_offset = 0 ;
+	UINT16   tcp_flags = 0 ;
 
 	memset(&DataBuffer, 0, BUFFER_SIZE);
 	
@@ -1037,12 +1040,23 @@ LogPacket(
 					UINT DataStart = 0;
 					if (packet->direction == FWP_DIRECTION_OUTBOUND) {
 						// Outbound seems to have still the UDP/TCP header info included
-						switch (packet->protocol) {
+						
+					switch (packet->protocol) {
 						case 17:
 							DataStart = sizeof(UDP_HDR);
 							break;
 						case 6:
-							DataStart = sizeof(TCP_HDR);
+							DataStart = sizeof(TCP_HDR); // without TCP options  
+							tcp_header = (PTCP_HDR)&DataBuffer; 
+							tcp_flags = RtlUshortByteSwap(tcp_header->lenflags);
+							tcp_data_offset = tcp_flags & 0xf000;
+							tcp_flags = tcp_flags & 0x01ff;
+							tcp_data_offset = tcp_data_offset >> 12; // Make only 4 bit count
+							DataStart = tcp_data_offset * 4;
+							DbgPrint("ProxyIntercept: TCP Data start: %d\n", tcp_data_offset);
+							DbgPrint("ProxyIntercept: TCP flags: x%04x\n", tcp_flags);
+							DbgPrint("ProxyIntercept: TCP SYN flags: %d \n", (tcp_flags & 0x0002) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: TCP Ack flags: %d \n", (tcp_flags & 0x0010) > 0 ? 1 : 0);
 							break;
 						}
 					}
