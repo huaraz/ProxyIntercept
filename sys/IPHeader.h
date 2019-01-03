@@ -1,9 +1,15 @@
 #pragma once
 #ifndef _IPHDR_H_
 #define _IPHDR_H_
-// Copy from 
-// https://github.com/Microsoft/Windows-classic-samples/blob/master/Samples/Win7Samples/netds/winsock/rcvall/iphdr.h
-//
+/*++
+
+Copyright (c) Microsoft Corporation. All rights reserved
+Copyright (c) Markus Moeller
+
+ Copy from
+ https://github.com/Microsoft/Windows-classic-samples/blob/master/Samples/Win7Samples/netds/winsock/rcvall/iphdr.h
+
+--*/
 //
 // IPv4 Header (without any IP options)
 //
