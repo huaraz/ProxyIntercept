@@ -949,7 +949,7 @@ LogPacket(
 {
 	NTSTATUS status = STATUS_SUCCESS;
 
-#define  BUFFER_SIZE 1024
+#define  BUFFER_SIZE 16*1024 // Cover Jumbo Frames
 	size_t   DataLength = 0;
 	size_t   DataOffset = 0;
 	NET_BUFFER_LIST* nBL = packet->netBufferList;
@@ -967,6 +967,7 @@ LogPacket(
 		DbgPrint("ProxyIntercept: Null packet\n");
 		return status;
 	}
+
 	if (packet->protocol == 6 || packet->protocol == 17) {
 		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d\r\n",
 			packet->ipHeaderSize,
@@ -989,14 +990,14 @@ LogPacket(
 			packet->protocol
 		);
 	}
-
+	
 	while (nBL) {
 		NET_BUFFER* nB = NET_BUFFER_LIST_FIRST_NB(nBL);
 		while (nB) {
 			DataLength = DataLength + NET_BUFFER_DATA_LENGTH(nB);
 			DataOffset = NET_BUFFER_DATA_OFFSET(nB);
 			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d \n", DataLength,DataOffset);
-			if (DataLength) {
+			if (DataLength > 0) {
 				//
 				// assume for now only one buffer despite loop !
 				//
@@ -1018,9 +1019,15 @@ LogPacket(
 				//
 				//	The return value can also be NULL due to a low resource condition where a data buffer cannot be mapped.This may occur even if the data is contiguous or the Storage parameter is non - NULL.
 				//
-				DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
-				DbgPrint("ProxyIntercept: DataPointer %p, DataBuffer %p\n",DataPointer ? DataPointer : 0, &DataBuffer);
-				if ( DataPointer ) {
+				if (DataLength > BUFFER_SIZE) {
+					DbgPrint("ProxyIntercept: Buffer too small\n");
+					break;
+				}
+				else {
+					DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
+				}
+				DbgPrint("ProxyIntercept: DataPointer %p, DataBuffer %p\n", DataPointer ? DataPointer : 0, &DataBuffer);
+				if ( DataPointer != NULL ) {
 					if (DataPointer != &DataBuffer) {
 						// Data is contiguous i.e. DataPointer points to the Data
 						memcpy(&DataBuffer, DataPointer, DataLength);
