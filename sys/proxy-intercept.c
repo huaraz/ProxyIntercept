@@ -949,14 +949,7 @@ LogPacket(
 {
 	NTSTATUS status = STATUS_SUCCESS;
 
-	HANDLE   handle;
-	IO_STATUS_BLOCK    ioStatusBlock;
-	UNICODE_STRING     uniName;
-	OBJECT_ATTRIBUTES  objAttr;
-
 #define  BUFFER_SIZE 1024
-	CHAR     buffer[10*BUFFER_SIZE];
-	size_t   cb;
 	size_t   DataLength = 0;
 	size_t   DataOffset = 0;
 	NET_BUFFER_LIST* nBL = packet->netBufferList;
@@ -975,31 +968,25 @@ LogPacket(
 		return status;
 	}
 	if (packet->protocol == 6 || packet->protocol == 17) {
-		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
+		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d\r\n",
 			packet->ipHeaderSize,
 			packet->transportHeaderSize,
 			packet->direction ? "Inbound" : "Outbound",
 			packet->type,
 			RtlUshortByteSwap(packet->localPort),
 			RtlUshortByteSwap(packet->remotePort),
-			packet->protocol,
-			DataLength,
-			BufferListCount,
-			BufferCount
+			packet->protocol
 		);
 	}
 	else {
-		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
+		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d\r\n",
 			packet->ipHeaderSize,
 			packet->transportHeaderSize,
 			packet->direction ? "Inbound" : "Outbound",
 			packet->type,
 			RtlUshortByteSwap(packet->localPort),
 			RtlUshortByteSwap(packet->remotePort),
-			packet->protocol,
-			DataLength,
-			BufferListCount,
-			BufferCount
+			packet->protocol
 		);
 	}
 
@@ -1042,7 +1029,7 @@ LogPacket(
 					if (packet->direction == FWP_DIRECTION_OUTBOUND) {
 						// Outbound seems to have still the UDP/TCP header info included
 						
-					switch (packet->protocol) {
+					    switch (packet->protocol) {
 						case 17:
 							DataStart = sizeof(UDP_HDR);
 							break;
@@ -1053,11 +1040,11 @@ LogPacket(
 							tcp_data_offset = tcp_flags & 0xf000;
 							tcp_flags = tcp_flags & 0x01ff;
 							tcp_data_offset = tcp_data_offset >> 12; // Make only 4 bit count
-							DataStart = tcp_data_offset * 4;
+							DataStart = tcp_data_offset * 4; // with TCP options
 							DbgPrint("ProxyIntercept: TCP Data start: %d\n", tcp_data_offset);
 							DbgPrint("ProxyIntercept: TCP flags: x%04x\n", tcp_flags);
-							DbgPrint("ProxyIntercept: TCP SYN flags: %d \n", (tcp_flags & 0x0002) > 0 ? 1 : 0);
-							DbgPrint("ProxyIntercept: TCP Ack flags: %d \n", (tcp_flags & 0x0010) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: TCP SYN flag: %d \n", (tcp_flags & 0x0002) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: TCP Ack flag: %d \n", (tcp_flags & 0x0010) > 0 ? 1 : 0);
 							break;
 						}
 					}
@@ -1074,82 +1061,13 @@ LogPacket(
 		nBL = NET_BUFFER_LIST_NEXT_NBL(nBL);
 		BufferListCount++;
 	}
-	//
-	// Need to work out if IP and Transport header should be part of the data
-	// It seems different for inbound vs. outbound 
-	//
-
-
-
-	// or L"\\SystemRoot\\example.txt"
-	RtlInitUnicodeString(&uniName, L"\\DosDevices\\C:\\Temp\\trace.txt");
-	InitializeObjectAttributes(&objAttr, &uniName,
-		OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-		NULL, NULL);
-
-	// Do not try to perform any file operations at higher IRQL levels.
-	// Instead, you may use a work item or a system worker thread to perform file operations.
-
-	if (KeGetCurrentIrql() != PASSIVE_LEVEL)
-		return STATUS_INVALID_DEVICE_STATE;
-
-	status = ZwCreateFile(&handle,
-		GENERIC_WRITE,
-		&objAttr, &ioStatusBlock, NULL,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
-		FILE_OPEN_IF,
-		FILE_SYNCHRONOUS_IO_NONALERT,
-		NULL, 0);
-
-	if (NT_SUCCESS(status)) {
-		// status = RtlStringCbPrintfA(buffer, sizeof(buffer), "Remote port %d\r\nLocal port %d\r\n", packet->remotePort,packet->localPort);
-		if (packet) {
-			if (packet->protocol == 6 || packet->protocol == 17) {
-				status = RtlStringCbPrintfA(buffer, sizeof(buffer),
-					"IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
-					packet->ipHeaderSize,
-					packet->transportHeaderSize,
-					packet->direction ? "Inbound" : "Outbound",
-					packet->type,
-					RtlUshortByteSwap(packet->localPort),
-					RtlUshortByteSwap(packet->remotePort),
-					packet->protocol,
-					DataLength,
-					BufferListCount,
-					BufferCount
-				);
-			}
-			else {
-				status = RtlStringCbPrintfA(buffer, sizeof(buffer),
-					"IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d, Length: %d, Buffer List count: %d, Buffer count: %d\r\n",
-					packet->ipHeaderSize,
-					packet->transportHeaderSize, 
-					packet->direction ? "Inbound" : "Outbound",
-					packet->type,
-					RtlUshortByteSwap(packet->localPort),
-					RtlUshortByteSwap(packet->remotePort),
-					packet->protocol,
-					DataLength,
-					BufferListCount,
-					BufferCount
-				);
-			}
-		}
-
-		if (NT_SUCCESS(status)) {
-			status = RtlStringCbLengthA(buffer, sizeof(buffer), &cb);
-			if (NT_SUCCESS(status)) {
-				LARGE_INTEGER Offset;
-				Offset.HighPart = -1;
-				Offset.LowPart = FILE_WRITE_TO_END_OF_FILE;
-				status = ZwWriteFile(handle, NULL, NULL, NULL, &ioStatusBlock,
-					buffer, (ULONG)cb, &Offset, NULL);
-			}
-		}
-		ZwClose(handle);
-	}
-
+		
+	DbgPrint("ProxyIntercept: Buffer List count: %d, Buffer count: %d, Total Length: %d\r\n",
+		BufferListCount,
+		BufferCount,
+		DataLength
+	);
+	
 	return status;
 
 }
