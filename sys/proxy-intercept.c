@@ -996,34 +996,53 @@ LogPacket(
 		while (nB) {
 			DataLength = DataLength + NET_BUFFER_DATA_LENGTH(nB);
 			DataOffset = NET_BUFFER_DATA_OFFSET(nB);
-			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d \n", DataLength,DataOffset);
-			if (DataLength > 0) {
-				//
-				// assume for now only one buffer despite loop !
-				//
-				// NdisGetDataBuffer returns a pointer to the start of the contiguous data or 
-				// it returns NULL.
-				//
-				// If the DataLength member of the NET_BUFFER_DATA structure in the NET_BUFFER 
-				// structure that the NetBuffer parameter points to is less than the value in 
-				// the BytesNeeded parameter, the return value is NULL.
-				//
-				// If the requested data in the buffer is contiguous, the return value is a 
-				// pointer to a location that NDIS provides.
-				//
-				// If the data is not contiguous, NDIS uses the Storage parameter as follows :
-				//
-				//  If the Storage parameter is non - NULL, NDIS copies the data to the buffer 
-				//     at Storage. The return value is the pointer passed to the Storage parameter.
-				//	If the Storage parameter is NULL, the return value is NULL.
-				//
-				//	The return value can also be NULL due to a low resource condition where a data buffer cannot be mapped.This may occur even if the data is contiguous or the Storage parameter is non - NULL.
-				//
-				if (DataLength > BUFFER_SIZE) {
-					DbgPrint("ProxyIntercept: Buffer too small\n");
-					break;
+			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d, NBLOffset %d \n", DataLength,DataOffset,packet->nblOffset);
+			//
+			// assume for now only one buffer despite loop !
+			//
+			// NdisGetDataBuffer returns a pointer to the start of the contiguous data or 
+			// it returns NULL.
+			//
+			// If the DataLength member of the NET_BUFFER_DATA structure in the NET_BUFFER 
+			// structure that the NetBuffer parameter points to is less than the value in 
+			// the BytesNeeded parameter, the return value is NULL.
+			//
+			// If the requested data in the buffer is contiguous, the return value is a 
+			// pointer to a location that NDIS provides.
+			//
+			// If the data is not contiguous, NDIS uses the Storage parameter as follows :
+			//
+			//  If the Storage parameter is non - NULL, NDIS copies the data to the buffer 
+			//     at Storage. The return value is the pointer passed to the Storage parameter.
+			//	If the Storage parameter is NULL, the return value is NULL.
+			//
+			//	The return value can also be NULL due to a low resource condition where a data buffer cannot be mapped.This may occur even if the data is contiguous or the Storage parameter is non - NULL.
+			//
+			if (DataLength > BUFFER_SIZE) {
+				DbgPrint("ProxyIntercept: Buffer too small\n");
+				break;
+			}
+			else {
+				if ( packet->direction == FWP_DIRECTION_INBOUND && packet->transportHeaderSize != 0) {
+					// Inbound has the UDP/TCP header removed
+				    NDIS_STATUS ndisStatus = 0;
+					ndisStatus = NdisRetreatNetBufferDataStart(
+						nB,
+						packet->transportHeaderSize,
+						0,
+						NULL
+					);
+					_Analysis_assume_(ndisStatus == NDIS_STATUS_SUCCESS);
+					DataLength = DataLength + packet->transportHeaderSize;
+   				    DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
+					NdisAdvanceNetBufferDataStart(
+						nB,
+						packet->transportHeaderSize,
+						FALSE,
+						NULL
+					);
 				}
-				else {
+				if ( packet->direction == FWP_DIRECTION_OUTBOUND && DataLength > 0 ) {
 					DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
 				}
 				DbgPrint("ProxyIntercept: DataPointer %p, DataBuffer %p\n", DataPointer ? DataPointer : 0, &DataBuffer);
@@ -1033,10 +1052,7 @@ LogPacket(
 						memcpy(&DataBuffer, DataPointer, DataLength);
 					}
 					UINT DataStart = 0;
-					if (packet->direction == FWP_DIRECTION_OUTBOUND) {
-						// Outbound seems to have still the UDP/TCP header info included
-						
-					    switch (packet->protocol) {
+					switch (packet->protocol) {
 						case 17:
 							DataStart = sizeof(UDP_HDR);
 							break;
@@ -1051,9 +1067,9 @@ LogPacket(
 							DbgPrint("ProxyIntercept: TCP Data start: %d\n", tcp_data_offset);
 							DbgPrint("ProxyIntercept: TCP flags: x%04x\n", tcp_flags);
 							DbgPrint("ProxyIntercept: TCP SYN flag: %d \n", (tcp_flags & 0x0002) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: TCP FIN flag: %d \n", (tcp_flags & 0x0001) > 0 ? 1 : 0);
 							DbgPrint("ProxyIntercept: TCP Ack flag: %d \n", (tcp_flags & 0x0010) > 0 ? 1 : 0);
 							break;
-						}
 					}
 					DbgPrint("ProxyIntercept: Data start: %d\n", DataStart);
 					for (UINT i = DataStart; i < DataLength; i++) {
