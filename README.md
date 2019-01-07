@@ -79,3 +79,7 @@ InstallHinfSection(NULL,NULL,TEXT("DefaultInstall 132 path-to-inf\infname.inf"),
 For more information about InstallHinfSection, see the Microsoft Windows SDK documentation.
 
 Ref: https://docs.microsoft.com/en-gb/windows-hardware/drivers/install/inf-defaultinstall-section
+
+
+To add app/user filters see also https://docs.microsoft.com/en-us/windows/desktop/fwp/permitting-and-blocking-applications-and-users
+More detailed network call (e.g. listen,accept,bind ) filtering can be found here https://docs.microsoft.com/en-us/windows/desktop/fwp/ale-layers

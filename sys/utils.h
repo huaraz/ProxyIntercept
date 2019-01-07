@@ -32,12 +32,16 @@ ADDRESS_FAMILY GetAddressFamilyForLayer(
    case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4:
    case FWPS_LAYER_OUTBOUND_TRANSPORT_V4:
    case FWPS_LAYER_INBOUND_TRANSPORT_V4:
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V4:
+   case	FWPS_LAYER_ALE_AUTH_LISTEN_V4:
       addressFamily = AF_INET;
       break;
    case FWPS_LAYER_ALE_AUTH_CONNECT_V6:
    case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V6:
    case FWPS_LAYER_OUTBOUND_TRANSPORT_V6:
    case FWPS_LAYER_INBOUND_TRANSPORT_V6:
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V6:
+   case	FWPS_LAYER_ALE_AUTH_LISTEN_V6:
       addressFamily = AF_INET6;
       break;
    default:
@@ -106,6 +110,18 @@ GetFlagsIndexesForLayer(
    case FWPS_LAYER_INBOUND_TRANSPORT_V6:
       *flagsIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_FLAGS;
       break;
+   case FWPS_LAYER_ALE_AUTH_LISTEN_V4:
+	   *flagsIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V4_FLAGS;
+	   break;
+   case FWPS_LAYER_ALE_AUTH_LISTEN_V6:
+	   *flagsIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V6_FLAGS;
+       break;
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V4:
+	   *flagsIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_FLAGS;
+	   break;
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V6:
+	   *flagsIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_FLAGS;
+       break;
    default:
       *flagsIndex = UINT_MAX;
       NT_ASSERT(0);
@@ -171,14 +187,16 @@ GetDeliveryInterfaceIndexesForLayer(
 
 __inline
 void
-GetNetwork5TupleIndexesForLayer(
+GetNetwork7TupleIndexesForLayer(
    _In_ UINT16 layerId,
    _Out_ UINT* localAddressIndex,
    _Out_ UINT* remoteAddressIndex,
    _Out_ UINT* localPortIndex,
    _Out_ UINT* remotePortIndex,
-   _Out_ UINT* protocolIndex
-   )
+   _Out_ UINT* protocolIndex,
+   _Out_ UINT* applicationIndex,
+   _Out_ UINT* userIndex
+)
 {
    switch (layerId)
    {
@@ -188,65 +206,119 @@ GetNetwork5TupleIndexesForLayer(
       *localPortIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_PROTOCOL;
-      break;
+	  *applicationIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V4_ALE_APP_ID;
+	  *userIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V4_ALE_USER_ID;
+	  break;
    case FWPS_LAYER_ALE_AUTH_CONNECT_V6:
       *localAddressIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_PROTOCOL;
-      break;
+	  *applicationIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_ALE_APP_ID;
+	  *userIndex = FWPS_FIELD_ALE_AUTH_CONNECT_V6_ALE_USER_ID;
+	  break;
    case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4:
       *localAddressIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_PROTOCOL;
-      break;
+	  *applicationIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_ALE_APP_ID;
+	  *userIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_ALE_USER_ID;
+	  break;
    case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V6:
       *localAddressIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_PROTOCOL;
-      break;
+	  *applicationIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_ALE_APP_ID;
+	  *userIndex = FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_ALE_USER_ID;
+	  break;
    case FWPS_LAYER_OUTBOUND_TRANSPORT_V4:
       *localAddressIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_PROTOCOL;
-      break;
+	  *applicationIndex = UINT_MAX;
+	  *userIndex = UINT_MAX;
+	  break;
    case FWPS_LAYER_OUTBOUND_TRANSPORT_V6:
       *localAddressIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V6_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V6_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V6_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V6_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_OUTBOUND_TRANSPORT_V6_IP_PROTOCOL;
-      break;
+	  *applicationIndex = UINT_MAX;
+	  *userIndex = UINT_MAX;
+	  break;
    case FWPS_LAYER_INBOUND_TRANSPORT_V4:
       *localAddressIndex = FWPS_FIELD_INBOUND_TRANSPORT_V4_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_INBOUND_TRANSPORT_V4_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_INBOUND_TRANSPORT_V4_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_INBOUND_TRANSPORT_V4_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_INBOUND_TRANSPORT_V4_IP_PROTOCOL;
-      break;
+	  *applicationIndex = UINT_MAX;
+	  *userIndex = UINT_MAX;
+	  break;
    case FWPS_LAYER_INBOUND_TRANSPORT_V6:
       *localAddressIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_IP_LOCAL_ADDRESS;
       *remoteAddressIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_IP_REMOTE_ADDRESS;
       *localPortIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_IP_LOCAL_PORT;
       *remotePortIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_IP_REMOTE_PORT;
       *protocolIndex = FWPS_FIELD_INBOUND_TRANSPORT_V6_IP_PROTOCOL;
-      break;
+	  *applicationIndex = UINT_MAX;
+	  *userIndex = UINT_MAX;
+	  break;
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V4:
+	   *localAddressIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_IP_LOCAL_ADDRESS;
+	   *remoteAddressIndex = UINT_MAX;
+	   *localPortIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_IP_LOCAL_PORT;
+	   *remotePortIndex = UINT_MAX;
+	   *protocolIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_IP_PROTOCOL;
+	   *applicationIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_ALE_APP_ID;
+	   *userIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V4_ALE_USER_ID;
+	   break;
+   case FWPS_LAYER_ALE_BIND_REDIRECT_V6:
+	   *localAddressIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_LOCAL_ADDRESS;
+	   *remoteAddressIndex = UINT_MAX;
+	   *localPortIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_LOCAL_PORT;
+	   *remotePortIndex = UINT_MAX;
+	   *protocolIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL;
+	   *applicationIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_ALE_APP_ID;
+	   *userIndex = FWPS_FIELD_ALE_BIND_REDIRECT_V6_ALE_USER_ID;
+	   break;
+   case FWPS_LAYER_ALE_AUTH_LISTEN_V4:
+	   *localAddressIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V4_IP_LOCAL_ADDRESS;
+	   *remoteAddressIndex = UINT_MAX;
+	   *localPortIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V4_IP_LOCAL_PORT;
+	   *remotePortIndex = UINT_MAX;
+	   *protocolIndex = UINT_MAX;
+	   *applicationIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V4_ALE_APP_ID;
+	   *userIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V4_ALE_USER_ID;
+	   break;
+   case FWPS_LAYER_ALE_AUTH_LISTEN_V6:
+	   *localAddressIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V6_IP_LOCAL_ADDRESS;
+	   *remoteAddressIndex = UINT_MAX;
+	   *localPortIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V6_IP_LOCAL_PORT;
+	   *remotePortIndex = UINT_MAX;
+	   *protocolIndex = UINT_MAX;
+	   *applicationIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V6_ALE_APP_ID;
+	   *userIndex = FWPS_FIELD_ALE_AUTH_LISTEN_V6_ALE_USER_ID;
+       break; 
    default:
       *localAddressIndex = UINT_MAX;
       *remoteAddressIndex = UINT_MAX;
       *localPortIndex = UINT_MAX;
       *remotePortIndex = UINT_MAX;
       *protocolIndex = UINT_MAX;      
-      NT_ASSERT(0);
+	  *applicationIndex = UINT_MAX;
+	  *userIndex = UINT_MAX;
+	  NT_ASSERT(0);
    }
-}
+ }
 
 BOOLEAN IsAleReauthorize(
    _In_ const FWPS_INCOMING_VALUES* inFixedValues
@@ -263,7 +335,7 @@ IsAleClassifyRequired(
    );
 
 void
-FillNetwork5Tuple(
+FillNetwork7Tuple(
    _In_ const FWPS_INCOMING_VALUES* inFixedValues,
    _In_ ADDRESS_FAMILY addressFamily,
    _Inout_ TL_PROXY_INTERCEPT_PENDED_PACKET* packet

@@ -47,6 +47,8 @@ typedef struct TL_PROXY_INTERCEPT_PENDED_PACKET_
    // Common fields for inbound and outbound traffic.
    //
    UINT8 protocol;
+   PSID userSid;
+   LPWSTR applicationId;
    NET_BUFFER_LIST* netBufferList;
    COMPARTMENT_ID compartmentId;
    union

@@ -133,6 +133,34 @@ DEFINE_GUID(
 	0x96cd, 
 	0x4e93, 
 	0x87, 0x2e, 0x7d, 0x9f, 0x1b, 0x49, 0x4a, 0x9e);
+// {62551EF0-994C-4B94-8FC2-5E5BE776F035}
+DEFINE_GUID(
+	TL_PROXY_INTERCEPT_ALE_BIND_CALLOUT_V4,
+	0x62551ef0,
+	0x994c,
+	0x4b94,
+	0x8f, 0xc2, 0x5e, 0x5b, 0xe7, 0x76, 0xf0, 0x35);
+// {F96E950D-DD48-4D7B-A0EB-9F73847174B0}
+DEFINE_GUID(
+	TL_PROXY_INTERCEPT_ALE_BIND_CALLOUT_V6,
+	0xf96e950d,
+	0xdd48,
+	0x4d7b,
+	0xa0, 0xeb, 0x9f, 0x73, 0x84, 0x71, 0x74, 0xb0);
+// {95F0272A-72EC-448D-8AB9-0514E0B0DB48}
+DEFINE_GUID(
+	TL_PROXY_INTERCEPT_ALE_LISTEN_CALLOUT_V4,
+	0x95f0272a,
+	0x72ec,
+	0x448d,
+	0x8a, 0xb9, 0x5, 0x14, 0xe0, 0xb0, 0xdb, 0x48);
+// {AC8324EE-1FF6-432A-B7D0-23FA553DEF42}
+DEFINE_GUID(
+	TL_PROXY_INTERCEPT_ALE_LISTEN_CALLOUT_V6,
+	0xac8324ee, 
+	0x1ff6, 
+	0x432a, 
+	0xb7, 0xd0, 0x23, 0xfa, 0x55, 0x3d, 0xef, 0x42);
 
 // {65979E55-0551-4D67-AC6E-74B835173FFD}
 DEFINE_GUID(
@@ -539,8 +567,7 @@ TLProxyInterceptRegisterCallouts(
                                  // FWPM_SUBLAYER_UNIVERSAL to be
                                  // compatible with Vista's IpSec
                                  // implementation.
-
-   status = FwpmSubLayerAdd(gEngineHandle, &TLProxyInterceptSubLayer, NULL);
+    status = FwpmSubLayerAdd(gEngineHandle, &TLProxyInterceptSubLayer, NULL);
    if (!NT_SUCCESS(status))
    {
       goto Exit;

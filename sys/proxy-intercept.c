@@ -23,7 +23,6 @@ Environment:
 
 --*/
 
-
 #include <ntddk.h>
 #include <ntstrsafe.h>
 
@@ -36,6 +35,7 @@ Environment:
 
 #include <fwpmk.h>
 
+#include <stdlib.h>
 #include "proxy-intercept.h"
 #include "utils.h"
 #include "IPHeader.h"
@@ -966,6 +966,13 @@ LogPacket(
 	if (!packet) {
 		DbgPrint("ProxyIntercept: Null packet\n");
 		return status;
+	}
+
+	if (packet->applicationId) {
+		DbgPrint("ProxyIntercept: Valid application ID found\n");
+	}
+	if (packet->userSid) {
+		DbgPrint("ProxyIntercept: Valid user ID found\n");
 	}
 
 	if (packet->protocol == 6 || packet->protocol == 17) {

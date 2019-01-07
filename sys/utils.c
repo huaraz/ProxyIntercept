@@ -27,6 +27,7 @@ Environment:
 
 #include <fwpmk.h>
 
+#include <stdlib.h>
 #include "proxy-intercept.h"
 #include "utils.h"
 
@@ -101,16 +102,21 @@ IsMatchingConnectPacket(
    UINT localPortIndex;
    UINT remotePortIndex;
    UINT protocolIndex;
+   UINT applicationIndex;
+   UINT userIndex;
+
 
    NT_ASSERT(pendedPacket->type == TL_PROXY_INTERCEPT_CONNECT_PACKET);
 
-   GetNetwork5TupleIndexesForLayer(
+   GetNetwork7TupleIndexesForLayer(
       inFixedValues->layerId,
       &localAddrIndex,
       &remoteAddrIndex,
       &localPortIndex,
       &remotePortIndex,
-      &protocolIndex
+      &protocolIndex,
+	  &applicationIndex,
+      &userIndex
       );
 
    if(localAddrIndex == UINT_MAX)
@@ -196,7 +202,7 @@ IsMatchingConnectPacket(
 }
 
 void
-FillNetwork5Tuple(
+FillNetwork7Tuple(
    _In_ const FWPS_INCOMING_VALUES* inFixedValues,
    _In_ ADDRESS_FAMILY addressFamily,
    _Inout_ TL_PROXY_INTERCEPT_PENDED_PACKET* packet
@@ -207,15 +213,32 @@ FillNetwork5Tuple(
    UINT localPortIndex;
    UINT remotePortIndex;
    UINT protocolIndex;
+   UINT applicationIndex;
+   UINT userIndex;
 
-   GetNetwork5TupleIndexesForLayer(
+   DbgPrint("ProxyIntercept: Seen layerId: %d", inFixedValues->layerId);
+
+   GetNetwork7TupleIndexesForLayer(
       inFixedValues->layerId,
       &localAddrIndex,
       &remoteAddrIndex,
       &localPortIndex,
       &remotePortIndex,
-      &protocolIndex
+      &protocolIndex,
+	  &applicationIndex,
+	  &userIndex
       );
+
+   packet->applicationId = NULL; 
+   if (applicationIndex != UINT_MAX) {
+	   packet->applicationId = inFixedValues->incomingValue[applicationIndex].value.unicodeString;
+	   DbgPrint("ProxyIntercept: Application path set %p\n", packet->applicationId);
+  }
+   packet->userSid = NULL;
+   if (userIndex != UINT_MAX) {
+	   packet->userSid = inFixedValues->incomingValue[userIndex].value.sid;
+	   DbgPrint("ProxyIntercept: User SID set %p\n", packet->userSid);
+   }
 
    if (addressFamily == AF_INET)
    {
@@ -311,7 +334,7 @@ AllocateAndInitializePendedPacket(
 
    pendedPacket->addressFamily = addressFamily;
 
-   FillNetwork5Tuple(
+   FillNetwork7Tuple(
       inFixedValues,
       addressFamily,
       pendedPacket
