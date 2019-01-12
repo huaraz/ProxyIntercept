@@ -221,6 +221,8 @@ TLProxyInterceptLoadConfig(
    DECLARE_CONST_UNICODE_STRING(valueNameRemote, L"RemoteAddressToProxyIntercept");
    DECLARE_UNICODE_STRING_SIZE(valueRemote, INET6_ADDRSTRLEN);
    
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+
    status = WdfRegistryQueryUnicodeString(key, &valueNameRemote, NULL, &valueRemote);
 
    if (NT_SUCCESS(status))
@@ -316,6 +318,8 @@ TLProxyInterceptAddFilter(
    FWPM_FILTER_CONDITION filterConditions[3] = {0}; 
    UINT conditionIndex;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    filter.layerKey = *layerKey;
    filter.displayData.name = (wchar_t*)filterName;
    filter.displayData.description = (wchar_t*)filterDesc;
@@ -405,6 +409,8 @@ TLProxyInterceptRegisterALEClassifyCallouts(
 
    BOOLEAN calloutRegistered = FALSE;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    sCallout.calloutKey = *calloutKey;
 
    if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_CONNECT_V4) ||
@@ -526,6 +532,8 @@ TLProxyInterceptRegisterTransportCallouts(
 
    BOOLEAN calloutRegistered = FALSE;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    sCallout.calloutKey = *calloutKey;
    sCallout.classifyFn = TLProxyInterceptTransportClassify;
    sCallout.notifyFn = TLProxyInterceptTransportNotify;
@@ -612,6 +620,8 @@ TLProxyInterceptRegisterCallouts(
 
    FWPM_SESSION session = {0};
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    session.flags = FWPM_SESSION_FLAG_DYNAMIC;
 
    status = FwpmEngineOpen(
@@ -827,7 +837,9 @@ Exit:
 void
 TLProxyInterceptUnregisterCallouts(void)
 {
-   FwpmEngineClose(gEngineHandle);
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+	
+	FwpmEngineClose(gEngineHandle);
    gEngineHandle = NULL;
 
    FwpsCalloutUnregisterById(gOutboundTlCalloutIdV6);
@@ -911,6 +923,8 @@ TLProxyInterceptInitDriverObjects(
    WDF_DRIVER_CONFIG config;
    PWDFDEVICE_INIT pInit = NULL;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    WDF_DRIVER_CONFIG_INIT(&config, WDF_NO_EVENT_CALLBACK);
 
    config.DriverInitFlags |= WdfDriverInitNonPnpDriver;
@@ -965,6 +979,8 @@ DriverEntry(
    WDFDEVICE device;
    HANDLE threadHandle;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    // Request NX Non-Paged Pool when available
    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 

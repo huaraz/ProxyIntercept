@@ -39,6 +39,8 @@ BOOLEAN IsAleReauthorize(
 {
    UINT flagsIndex;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+
    GetFlagsIndexesForLayer(
       inFixedValues->layerId,
       &flagsIndex
@@ -59,6 +61,8 @@ BOOLEAN IsSecureConnection(
 {
    UINT flagsIndex;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    GetFlagsIndexesForLayer(
       inFixedValues->layerId,
       &flagsIndex
@@ -84,6 +88,9 @@ IsAleClassifyRequired(
    // deprecated in Vista SP1 and Windows Server 2008.
    //
    UNREFERENCED_PARAMETER(inFixedValues);
+   
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    return FWPS_IS_METADATA_FIELD_PRESENT(
              inMetaValues,
              FWPS_METADATA_FIELD_ALE_CLASSIFY_REQUIRED
@@ -109,6 +116,8 @@ IsMatchingConnectPacket(
 
    NT_ASSERT(pendedPacket->type == TL_PROXY_INTERCEPT_CONNECT_PACKET);
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    GetNetwork7TupleIndexesForLayer(
       inFixedValues->layerId,
       &localAddrIndex,
@@ -217,6 +226,8 @@ FillNetwork7Tuple(
    UINT applicationIndex;
    UINT userIndex;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    GetNetwork7TupleIndexesForLayer(
       inFixedValues->layerId,
       &localAddrIndex,
@@ -233,7 +244,7 @@ FillNetwork7Tuple(
    packet->applicationId = NULL;
    if (applicationIndex != UINT_MAX) {
 	   packet->applicationId = inFixedValues->incomingValue[applicationIndex].value.unicodeString;
-	   DbgPrint("ProxyIntercept: Application path set %p\n", packet->applicationId);
+	   DbgPrint("ProxyIntercept: %s: Application path set %p\n", __FUNCTION__, packet->applicationId);
   }
    packet->userSid = NULL;
    if (userIndex != UINT_MAX) {
@@ -242,9 +253,9 @@ FillNetwork7Tuple(
 		   if (tokenAccessInformation->SidHash &&
 			   tokenAccessInformation->SidHash->SidAttr &&
 			   RtlValidSid(tokenAccessInformation->SidHash->SidAttr->Sid)) {
-			   DbgPrint("ProxyIntercept: Validated Sid\n");
+			   DbgPrint("ProxyIntercept: %s: Validated Sid\n", __FUNCTION__);
 			   packet->userSid = tokenAccessInformation->SidHash->SidAttr->Sid;
-			   DbgPrint("ProxyIntercept: User SID set %p\n", packet->userSid);
+			   DbgPrint("ProxyIntercept: %s: User SID set %p\n", __FUNCTION__, packet->userSid);
 		   }
 	   }
    }
@@ -293,7 +304,9 @@ FreePendedPacket(
    _Inout_ __drv_freesMem(Mem) TL_PROXY_INTERCEPT_PENDED_PACKET* packet
    )
 {
-   if (packet->netBufferList != NULL)
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+	
+	if (packet->netBufferList != NULL)
    {
       FwpsDereferenceNetBufferList(packet->netBufferList, FALSE);
    }
@@ -325,6 +338,8 @@ AllocateAndInitializePendedPacket(
 {
    TL_PROXY_INTERCEPT_PENDED_PACKET* pendedPacket;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    pendedPacket = ExAllocatePoolWithTag(
                         NonPagedPool,
                         sizeof(TL_PROXY_INTERCEPT_PENDED_PACKET),
@@ -465,6 +480,8 @@ IsTrafficPermitted(void)
    DECLARE_CONST_UNICODE_STRING(valueName, L"BlockTraffic");
    ULONG result;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    status = WdfRegistryQueryULong(
                gParametersKey,
                &valueName,

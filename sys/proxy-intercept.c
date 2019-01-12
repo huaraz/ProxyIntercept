@@ -112,7 +112,7 @@ TLProxyInterceptALEConnectClassify(
       goto Exit;
    }
 
-   DbgPrint("ProxyIntercept: TLProxyInterceptALEConnectClassify\n");
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 
    if (layerData != NULL)
    {
@@ -483,7 +483,7 @@ TLProxyInterceptALERecvAcceptClassify(
       goto Exit;
    }
 
-   DbgPrint("ProxyIntercept: TLProxyInterceptALERecvAcceptClassify\n");
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
    	 
   NT_ASSERT(layerData != NULL);
   _Analysis_assume_(layerData != NULL);
@@ -737,7 +737,7 @@ TLProxyInterceptALEBindClassify(
 		goto Exit;
 	}
 
-	DbgPrint("ProxyIntercept: TLProxyInterceptALEBindClassify\n");
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 	
 	NT_ASSERT(layerData != NULL);
 	_Analysis_assume_(layerData != NULL);
@@ -818,7 +818,7 @@ TLProxyInterceptALEListenClassify(
 		goto Exit;
 	}
 
-    DbgPrint("ProxyIntercept: TLProxyInterceptALEListenClassify\n");
+    DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 
 	NT_ASSERT(layerData != NULL);
 	_Analysis_assume_(layerData != NULL);
@@ -1060,6 +1060,7 @@ TLProxyInterceptALEConnectNotify(
    UNREFERENCED_PARAMETER(filterKey);
    UNREFERENCED_PARAMETER(filter);
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
    return STATUS_SUCCESS;
 }
 
@@ -1074,6 +1075,7 @@ TLProxyInterceptALERecvAcceptNotify(
    UNREFERENCED_PARAMETER(filterKey);
    UNREFERENCED_PARAMETER(filter);
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
    return STATUS_SUCCESS;
 }
 
@@ -1088,6 +1090,7 @@ TLProxyInterceptALEBindNotify(
 	UNREFERENCED_PARAMETER(filterKey);
 	UNREFERENCED_PARAMETER(filter);
 
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 	return STATUS_SUCCESS;
 }
 
@@ -1102,6 +1105,7 @@ TLProxyInterceptALEListenNotify(
 	UNREFERENCED_PARAMETER(filterKey);
 	UNREFERENCED_PARAMETER(filter);
 
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 	return STATUS_SUCCESS;
 }
 
@@ -1116,6 +1120,7 @@ TLProxyInterceptTransportNotify(
    UNREFERENCED_PARAMETER(filterKey);
    UNREFERENCED_PARAMETER(filter);
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
    return STATUS_SUCCESS;
 }
 
@@ -1129,6 +1134,7 @@ void TLProxyInterceptInjectComplete(
 
    UNREFERENCED_PARAMETER(dispatchLevel);   
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
    FwpsFreeCloneNetBufferList(netBufferList, 0);
 
    FreePendedPacket(packet);
@@ -1157,17 +1163,19 @@ LogPacket(
 	UINT16   tcp_data_offset = 0;
 	UINT16   tcp_flags = 0;
 
+	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+	
 	memset(&DataBuffer, 0, BUFFER_SIZE);
 
 	if (!packet) {
-		DbgPrint("ProxyIntercept: Null packet\n");
+		DbgPrint("ProxyIntercept: %s: Null packet\n", __FUNCTION__);
 		return status;
 	}
 
-	DbgPrint("ProxyIntercept: Seen layerId: %d", packet->layerId);
+	DbgPrint("ProxyIntercept: %s: WFP Packet layerId: %d", __FUNCTION__, packet->layerId);
 
 	if (packet->applicationId) {
-		DbgPrint("ProxyIntercept: Valid application ID found\n");
+		DbgPrint("ProxyIntercept: %s: Valid application ID found\n", __FUNCTION__);
 		ANSI_STRING ansiApplicationPath;
 		PUNICODE_STRING applicationPath = (PUNICODE_STRING) packet->applicationId;
 
@@ -1185,17 +1193,17 @@ LogPacket(
 			);
 
 			if (NT_SUCCESS(status)) {
-				DbgPrint("ProxyIntercept: Application path:  %S\n", ansiApplicationPath.Buffer);
+				DbgPrint("ProxyIntercept: %s: Application path:  %S\n", __FUNCTION__, ansiApplicationPath.Buffer);
 				ExFreePoolWithTag(ansiApplicationPath.Buffer, 'oytF');
 			}
 			else {
-				DbgPrint("ProxyIntercept: Application path failed to convert\n");
+				DbgPrint("ProxyIntercept: %s: Application path failed to convert\n", __FUNCTION__);
 			}
 		}
 	}
 
 	if (packet->userSid) {
-		DbgPrint("ProxyIntercept: Valid user ID found\n");
+		DbgPrint("ProxyIntercept: %s: Valid user ID found\n", __FUNCTION__);
 
 		UNICODE_STRING userName;
 		UNICODE_STRING domainName;
@@ -1249,18 +1257,19 @@ LogPacket(
 			ExFreePoolWithTag(domainName.Buffer, 'oytF');
 
 			if (NT_SUCCESS(status)) {
-				DbgPrint("ProxyIntercept: User name: %S\\%S\n", ansiDomainName.Buffer, ansiUserName.Buffer);
+				DbgPrint("ProxyIntercept: %s: User name: %S\\%S\n", __FUNCTION__, ansiDomainName.Buffer, ansiUserName.Buffer);
 				ExFreePoolWithTag(ansiUserName.Buffer, 'oytF');
 				ExFreePoolWithTag(ansiDomainName.Buffer, 'oytF');
 			}
 		}
 		else {
-			DbgPrint("ProxyIntercept: User name failed to convert\n");
+			DbgPrint("ProxyIntercept: %s: User name failed to convert\n", __FUNCTION__);
 		}
 	}
 
 	if (packet->protocol == 6 || packet->protocol == 17) {
-		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d\r\n",
+		DbgPrint("ProxyIntercept: %s: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, Local port: %d, Remote port: %d, Protocol: %d\r\n",
+			__FUNCTION__,
 			packet->ipHeaderSize,
 			packet->transportHeaderSize,
 			packet->direction ? "Inbound" : "Outbound",
@@ -1271,7 +1280,8 @@ LogPacket(
 		);
 	}
 	else {
-		DbgPrint("ProxyIntercept: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d\r\n",
+		DbgPrint("ProxyIntercept: %s: IP header size: %d, Transport header size: %d, Direction: %s, Packet Type: %d, ICMP Type: %d, ICMP Code: %d, Protocol: %d\r\n",
+			__FUNCTION__,
 			packet->ipHeaderSize,
 			packet->transportHeaderSize,
 			packet->direction ? "Inbound" : "Outbound",
@@ -1287,7 +1297,7 @@ LogPacket(
 		while (nB) {
 			DataLength = DataLength + NET_BUFFER_DATA_LENGTH(nB);
 			DataOffset = NET_BUFFER_DATA_OFFSET(nB);
-			DbgPrint("ProxyIntercept: DataLength %d, DataOffset %d, NBLOffset %d \n", DataLength,DataOffset,packet->nblOffset);
+			DbgPrint("ProxyIntercept: %s: DataLength %d, DataOffset %d, NBLOffset %d \n", __FUNCTION__, DataLength,DataOffset,packet->nblOffset);
 			//
 			// assume for now only one buffer despite loop !
 			//
@@ -1310,7 +1320,7 @@ LogPacket(
 			//	The return value can also be NULL due to a low resource condition where a data buffer cannot be mapped.This may occur even if the data is contiguous or the Storage parameter is non - NULL.
 			//
 			if (DataLength > BUFFER_SIZE) {
-				DbgPrint("ProxyIntercept: Buffer too small\n");
+				DbgPrint("ProxyIntercept: %s: Buffer too small\n", __FUNCTION__);
 				break;
 			}
 			else {
@@ -1336,7 +1346,7 @@ LogPacket(
 				if ( packet->direction == FWP_DIRECTION_OUTBOUND && DataLength > 0 ) {
 					DataPointer = NdisGetDataBuffer(nB, (ULONG)DataLength, &DataBuffer, 1, 0);
 				}
-				DbgPrint("ProxyIntercept: DataPointer %p, DataBuffer %p\n", DataPointer ? DataPointer : 0, &DataBuffer);
+				DbgPrint("ProxyIntercept: %s: DataPointer %p, DataBuffer %p\n", __FUNCTION__, DataPointer ? DataPointer : 0, &DataBuffer);
 				if ( DataPointer != NULL ) {
 					if (DataPointer != &DataBuffer) {
 						// Data is contiguous i.e. DataPointer points to the Data
@@ -1355,16 +1365,16 @@ LogPacket(
 							tcp_flags = tcp_flags & 0x01ff;
 							tcp_data_offset = tcp_data_offset >> 12; // Make only 4 bit count
 							DataStart = tcp_data_offset * 4; // with TCP options
-							DbgPrint("ProxyIntercept: TCP Data start: %d\n", tcp_data_offset);
-							DbgPrint("ProxyIntercept: TCP flags: x%04x\n", tcp_flags);
-							DbgPrint("ProxyIntercept: TCP SYN flag: %d \n", (tcp_flags & 0x0002) > 0 ? 1 : 0);
-							DbgPrint("ProxyIntercept: TCP FIN flag: %d \n", (tcp_flags & 0x0001) > 0 ? 1 : 0);
-							DbgPrint("ProxyIntercept: TCP Ack flag: %d \n", (tcp_flags & 0x0010) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: %s: TCP Data start: %d\n", __FUNCTION__, tcp_data_offset);
+							DbgPrint("ProxyIntercept: %s: TCP flags: x%04x\n", __FUNCTION__, tcp_flags);
+							DbgPrint("ProxyIntercept: %s: TCP SYN flag: %d \n", __FUNCTION__, (tcp_flags & 0x0002) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: %s: TCP FIN flag: %d \n", __FUNCTION__, (tcp_flags & 0x0001) > 0 ? 1 : 0);
+							DbgPrint("ProxyIntercept: %s: TCP Ack flag: %d \n", __FUNCTION__, (tcp_flags & 0x0010) > 0 ? 1 : 0);
 							break;
 					}
-					DbgPrint("ProxyIntercept: Data start: %d\n", DataStart);
+					DbgPrint("ProxyIntercept: %s: Data start: %d\n", __FUNCTION__, DataStart);
 					for (UINT i = DataStart; i < DataLength; i++) {
-						DbgPrint("ProxyIntercept: i:%d x%02x '%c'\n", i, DataBuffer[i],isprint(DataBuffer[i]) ? DataBuffer[i] : ' ');
+						DbgPrint("ProxyIntercept: %s: i:%d x%02x '%c'\n", __FUNCTION__, i, DataBuffer[i],isprint(DataBuffer[i]) ? DataBuffer[i] : ' ');
 					}
 			        DataBuffer[DataLength] = 0;
 				}
@@ -1376,7 +1386,8 @@ LogPacket(
 		BufferListCount++;
 	}
 		
-	DbgPrint("ProxyIntercept: Buffer List count: %d, Buffer count: %d, Total Length: %d\r\n",
+	DbgPrint("ProxyIntercept: %s: Buffer List count: %d, Buffer count: %d, Total Length: %d\r\n",
+		__FUNCTION__,
 		BufferListCount,
 		BufferCount,
 		DataLength
@@ -1400,6 +1411,8 @@ TLProxyInterceptCloneReinjectOutbound(
 
    NET_BUFFER_LIST* clonedNetBufferList = NULL;
    FWPS_TRANSPORT_SEND_PARAMS sendArgs = {0};
+   
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 
    status = FwpsAllocateCloneNetBufferList(
                packet->netBufferList,
@@ -1478,6 +1491,8 @@ TLProxyInterceptCloneReinjectInbound(
    ULONG nblOffset;
    NDIS_STATUS ndisStatus;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    //
    // For inbound net buffer list, we can assume it contains only one 
    // net buffer.
@@ -1633,6 +1648,8 @@ TLProxyInterceptCompletePendedConnection(
 
    TL_PROXY_INTERCEPT_PENDED_PACKET* pendedConnectLocal = *pendedConnect;
 
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
+   
    if (pendedConnectLocal->direction == FWP_DIRECTION_OUTBOUND)
    {
       HANDLE completionContext = pendedConnectLocal->completionContext;
@@ -1699,9 +1716,11 @@ TLProxyInterceptWorker(
 
    BOOLEAN found = FALSE;
 
+   static UINT32 LoopRef = 0;
+
    UNREFERENCED_PARAMETER(StartContext);
 
-   DbgPrint("ProxyIntercept: TLProxyInterceptWorker\n");
+   DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 
    for(;;)
    {
@@ -1713,8 +1732,9 @@ TLProxyInterceptWorker(
          NULL
          );
 
-	  DbgPrint("ProxyIntercept: TLProxyInterceptWorker wait status x%08x\n",status);
-
+	  LoopRef++;
+	  DbgPrint("ProxyIntercept: %s: Loop: %ul: wait status x%08x\n", __FUNCTION__,LoopRef,status);
+	  
       if (gDriverUnloading)
       {
          break;
@@ -1735,7 +1755,10 @@ TLProxyInterceptWorker(
          // Skip pended connections in the list, for which the auth decision is already taken.
          // They should not be for inbound connections.
          //
-         _Analysis_assume_(gConnList.Flink != NULL);         
+
+		  DbgPrint("ProxyIntercept: %s: Loop: %ul: Loop over connection list\n", __FUNCTION__,LoopRef);
+
+		  _Analysis_assume_(gConnList.Flink != NULL);         
          for (listEntry = gConnList.Flink;
               listEntry != &gConnList;
               listEntry = listEntry->Flink)
@@ -1802,16 +1825,23 @@ TLProxyInterceptWorker(
          KeReleaseInStackQueuedSpinLock(&packetQueueLockHandle);
       }
 
-      if (packet->type == TL_PROXY_INTERCEPT_CONNECT_PACKET)
+      if (packet != NULL && packet->type == TL_PROXY_INTERCEPT_CONNECT_PACKET)
       {
          TLProxyInterceptCompletePendedConnection(
             &packet,
             configPermitTraffic);
       }
 
+	  if (packet != NULL) {
+		  DbgPrint("ProxyIntercept: %s: Loop: %ul: LayerId %d\n", __FUNCTION__, LoopRef, packet->layerId);
+	  }
+	  else {
+		  DbgPrint("ProxyIntercept: %s: Loop: %ul: no packet info\n", __FUNCTION__, LoopRef);
+	  }
+
       if ((packet != NULL) && configPermitTraffic)
       {
-		  DbgPrint("ProxyIntercept: Direction: %s\n", packet->direction ? packet->direction : -1);
+		  DbgPrint("ProxyIntercept: %s: Loop: %ul: Direction: %s\n", __FUNCTION__, LoopRef, packet->direction ? packet->direction : -1);
 		  if (packet->direction == FWP_DIRECTION_OUTBOUND)
          {
             status = TLProxyInterceptCloneReinjectOutbound(packet);
