@@ -66,6 +66,12 @@ UINT8*   configProxyInterceptRemoteAddrV6 = NULL;
 IN_ADDR  remoteAddrStorageV4;
 IN6_ADDR remoteAddrStorageV6;
 
+UINT8*   configProxyInterceptLocalAddrV4 = NULL;
+UINT8*   configProxyInterceptLocalAddrV6 = NULL;
+
+IN_ADDR  localAddrStorageV4;
+IN6_ADDR localAddrStorageV6;
+
 // 
 // Callout and sublayer GUIDs
 //
@@ -180,8 +186,12 @@ WDFKEY gParametersKey;
 HANDLE gEngineHandle;
 UINT32 gAleConnectCalloutIdV4, gOutboundTlCalloutIdV4;
 UINT32 gAleRecvAcceptCalloutIdV4, gInboundTlCalloutIdV4;
+UINT32 gAleBindCalloutIdV4;
+UINT32 gAleListenCalloutIdV4;
 UINT32 gAleConnectCalloutIdV6, gOutboundTlCalloutIdV6;
 UINT32 gAleRecvAcceptCalloutIdV6, gInboundTlCalloutIdV6;
+UINT32 gAleBindCalloutIdV6;
+UINT32 gAleListenCalloutIdV6;
 
 HANDLE gInjectionHandle;
 
@@ -208,20 +218,20 @@ TLProxyInterceptLoadConfig(
    )
 {
    NTSTATUS status;
-   DECLARE_CONST_UNICODE_STRING(valueName, L"RemoteAddressToProxyIntercept");
-   DECLARE_UNICODE_STRING_SIZE(value, INET6_ADDRSTRLEN);
+   DECLARE_CONST_UNICODE_STRING(valueNameRemote, L"RemoteAddressToProxyIntercept");
+   DECLARE_UNICODE_STRING_SIZE(valueRemote, INET6_ADDRSTRLEN);
    
-   status = WdfRegistryQueryUnicodeString(key, &valueName, NULL, &value);
+   status = WdfRegistryQueryUnicodeString(key, &valueNameRemote, NULL, &valueRemote);
 
    if (NT_SUCCESS(status))
    {
       PWSTR terminator;
       // Defensively null-terminate the string
-      value.Length = min(value.Length, value.MaximumLength - sizeof(WCHAR));
-      value.Buffer[value.Length/sizeof(WCHAR)] = UNICODE_NULL;
+      valueRemote.Length = min(valueRemote.Length, valueRemote.MaximumLength - sizeof(WCHAR));
+      valueRemote.Buffer[valueRemote.Length/sizeof(WCHAR)] = UNICODE_NULL;
 
       status = RtlIpv4StringToAddressW(
-                  value.Buffer,
+                  valueRemote.Buffer,
                   TRUE,
                   &terminator,
                   &remoteAddrStorageV4
@@ -236,7 +246,7 @@ TLProxyInterceptLoadConfig(
       else
       {
          status = RtlIpv6StringToAddressW(
-                     value.Buffer,
+                     valueRemote.Buffer,
                      &terminator,
                      &remoteAddrStorageV6
                      );
@@ -248,6 +258,45 @@ TLProxyInterceptLoadConfig(
       }
    }
 
+   DECLARE_CONST_UNICODE_STRING(valueNameLocal, L"LocalAddressToProxyIntercept");
+   DECLARE_UNICODE_STRING_SIZE(valueLocal, INET6_ADDRSTRLEN);
+
+   status = WdfRegistryQueryUnicodeString(key, &valueNameLocal, NULL, &valueLocal);
+
+   if (NT_SUCCESS(status))
+   {
+	   PWSTR terminator;
+	   // Defensively null-terminate the string
+	   valueLocal.Length = min(valueLocal.Length, valueLocal.MaximumLength - sizeof(WCHAR));
+	   valueLocal.Buffer[valueLocal.Length / sizeof(WCHAR)] = UNICODE_NULL;
+
+	   status = RtlIpv4StringToAddressW(
+		   valueLocal.Buffer,
+		   TRUE,
+		   &terminator,
+		   &localAddrStorageV4
+	   );
+
+	   if (NT_SUCCESS(status))
+	   {
+		   localAddrStorageV4.S_un.S_addr =
+			   RtlUlongByteSwap(localAddrStorageV4.S_un.S_addr);
+		   configProxyInterceptLocalAddrV4 = &localAddrStorageV4.S_un.S_un_b.s_b1;
+	   }
+	   else
+	   {
+		   status = RtlIpv6StringToAddressW(
+			   valueLocal.Buffer,
+			   &terminator,
+			   &localAddrStorageV6
+		   );
+
+		   if (NT_SUCCESS(status))
+		   {
+			   configProxyInterceptLocalAddrV6 = (UINT8*)(&localAddrStorageV6.u.Byte[0]);
+		   }
+	   }
+   }
    return status;
 }
 
@@ -255,7 +304,7 @@ NTSTATUS
 TLProxyInterceptAddFilter(
    _In_ const wchar_t* filterName,
    _In_ const wchar_t* filterDesc,
-   _In_reads_opt_(16) const UINT8* remoteAddr,
+   _In_reads_opt_(16) const UINT8* someAddr,
    _In_ UINT64 context,
    _In_ const GUID* layerKey,
    _In_ const GUID* calloutKey
@@ -280,27 +329,38 @@ TLProxyInterceptAddFilter(
 
    conditionIndex = 0;
 
-   if (remoteAddr != NULL)
+   if (someAddr != NULL)
    {
-      filterConditions[conditionIndex].fieldKey = 
-         FWPM_CONDITION_IP_REMOTE_ADDRESS;
-      filterConditions[conditionIndex].matchType = FWP_MATCH_EQUAL;
+	   if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4) ||
+		   IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V4) ||
+		   IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6) ||
+		   IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V6)) {
+		   filterConditions[conditionIndex].fieldKey =
+			   FWPM_CONDITION_IP_LOCAL_ADDRESS;
+	   } 
+	   else {
+		   filterConditions[conditionIndex].fieldKey =
+			   FWPM_CONDITION_IP_REMOTE_ADDRESS;
+	   }
+	   filterConditions[conditionIndex].matchType = FWP_MATCH_EQUAL;
 
-      if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_CONNECT_V4) ||
+	   if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_CONNECT_V4) ||
           IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4) ||
-          IsEqualGUID(layerKey, &FWPM_LAYER_INBOUND_TRANSPORT_V4) ||
-          IsEqualGUID(layerKey, &FWPM_LAYER_OUTBOUND_TRANSPORT_V4))
-      {
+          IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4) ||
+		  IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V4) ||
+		  IsEqualGUID(layerKey, &FWPM_LAYER_INBOUND_TRANSPORT_V4) ||
+		  IsEqualGUID(layerKey, &FWPM_LAYER_OUTBOUND_TRANSPORT_V4))
+	  {
          filterConditions[conditionIndex].conditionValue.type = FWP_UINT32;
          filterConditions[conditionIndex].conditionValue.uint32 = 
-            *(UINT32*)remoteAddr;
+            *(UINT32*)someAddr;
       }
       else
       {
          filterConditions[conditionIndex].conditionValue.type = 
             FWP_BYTE_ARRAY16_TYPE;
          filterConditions[conditionIndex].conditionValue.byteArray16 = 
-            (FWP_BYTE_ARRAY16*)remoteAddr;
+            (FWP_BYTE_ARRAY16*)someAddr;
       }
 
       conditionIndex++;
@@ -352,6 +412,18 @@ TLProxyInterceptRegisterALEClassifyCallouts(
    {
       sCallout.classifyFn = TLProxyInterceptALEConnectClassify;
       sCallout.notifyFn = TLProxyInterceptALEConnectNotify;
+   } 
+   else if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4) ||
+	        IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6))
+   {
+	   sCallout.classifyFn = TLProxyInterceptALEBindClassify;
+	   sCallout.notifyFn = TLProxyInterceptALEBindNotify;
+   }
+   else if (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V4) ||
+	        IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V6))
+   {
+	   sCallout.classifyFn = TLProxyInterceptALEListenClassify;
+	   sCallout.notifyFn = TLProxyInterceptALEListenNotify;
    }
    else
    {
@@ -395,8 +467,14 @@ TLProxyInterceptRegisterALEClassifyCallouts(
                L"Intercepts inbound or outbound connect attempts",
                (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_CONNECT_V4) ||
                 IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4)) ? 
-                  configProxyInterceptRemoteAddrV4 : configProxyInterceptRemoteAddrV6,
-               0,
+	              configProxyInterceptRemoteAddrV4 : 
+	            (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_CONNECT_V6) ||
+	             IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6)) ? 
+	              configProxyInterceptRemoteAddrV6 : 
+	           (IsEqualGUID(layerKey, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4) ||
+		        IsEqualGUID(layerKey, &FWPM_LAYER_ALE_AUTH_LISTEN_V4)) ?
+	              configProxyInterceptLocalAddrV4 : configProxyInterceptLocalAddrV6,
+	           0,
                layerKey,
                calloutKey
                );
@@ -666,11 +744,63 @@ TLProxyInterceptRegisterCallouts(
          goto Exit;
       }
    }
+      
+   if (configProxyInterceptLocalAddrV4 != NULL)
+   {
+	   status = TLProxyInterceptRegisterALEClassifyCallouts(
+		   &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4,
+		   &TL_PROXY_INTERCEPT_ALE_BIND_CALLOUT_V4,
+		   deviceObject,
+		   &gAleBindCalloutIdV4
+	   );
+	   if (!NT_SUCCESS(status))
+	   {
+		   goto Exit;
+	   }
+
+	   status = TLProxyInterceptRegisterALEClassifyCallouts(
+		   &FWPM_LAYER_ALE_AUTH_LISTEN_V4,
+		   &TL_PROXY_INTERCEPT_ALE_LISTEN_CALLOUT_V4,
+		   deviceObject,
+		   &gAleListenCalloutIdV4
+	   );
+	   if (!NT_SUCCESS(status))
+	   {
+		   goto Exit;
+	   }
+
+	
+   }
+
+   if (configProxyInterceptLocalAddrV6 != NULL)
+   {
+	   status = TLProxyInterceptRegisterALEClassifyCallouts(
+		   &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6,
+		   &TL_PROXY_INTERCEPT_ALE_BIND_CALLOUT_V6,
+		   deviceObject,
+		   &gAleBindCalloutIdV6
+	   );
+	   if (!NT_SUCCESS(status))
+	   {
+		   goto Exit;
+	   }
+
+	   status = TLProxyInterceptRegisterALEClassifyCallouts(
+		   &FWPM_LAYER_ALE_AUTH_LISTEN_V6,
+		   &TL_PROXY_INTERCEPT_ALE_LISTEN_CALLOUT_V6,
+		   deviceObject,
+		   &gAleListenCalloutIdV6
+	   );
+	   if (!NT_SUCCESS(status))
+	   {
+		   goto Exit;
+	   }
+   }
 
    status = FwpmTransactionCommit(gEngineHandle);
    if (!NT_SUCCESS(status))
    {
-      goto Exit;
+	   goto Exit;
    }
    inTransaction = FALSE;
 
@@ -678,17 +808,18 @@ Exit:
 
    if (!NT_SUCCESS(status))
    {
-      if (inTransaction)
-      {
-         FwpmTransactionAbort(gEngineHandle);
-         _Analysis_assume_lock_not_held_(gEngineHandle); // Potential leak if "FwpmTransactionAbort" fails
-      }
-      if (engineOpened)
-      {
-         FwpmEngineClose(gEngineHandle);
-         gEngineHandle = NULL;
-      }
+	   if (inTransaction)
+	   {
+		   FwpmTransactionAbort(gEngineHandle);
+		   _Analysis_assume_lock_not_held_(gEngineHandle); // Potential leak if "FwpmTransactionAbort" fails
+	   }
+	   if (engineOpened)
+	   {
+		   FwpmEngineClose(gEngineHandle);
+		   gEngineHandle = NULL;
+	   }
    }
+
 
    return status;
 }
@@ -706,8 +837,12 @@ TLProxyInterceptUnregisterCallouts(void)
 
    FwpsCalloutUnregisterById(gAleConnectCalloutIdV6);
    FwpsCalloutUnregisterById(gAleConnectCalloutIdV4);
+   FwpsCalloutUnregisterById(gAleBindCalloutIdV6); 
+   FwpsCalloutUnregisterById(gAleBindCalloutIdV4);
    FwpsCalloutUnregisterById(gAleRecvAcceptCalloutIdV6);
    FwpsCalloutUnregisterById(gAleRecvAcceptCalloutIdV4);
+   FwpsCalloutUnregisterById(gAleListenCalloutIdV6);
+   FwpsCalloutUnregisterById(gAleListenCalloutIdV4);
 }
 
 _Function_class_(EVT_WDF_DRIVER_UNLOAD)

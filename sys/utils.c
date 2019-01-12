@@ -15,6 +15,7 @@ Environment:
 --*/
 
 
+#include <ntifs.h>
 #include <ntddk.h>
 #include <wdf.h>
 
@@ -216,8 +217,6 @@ FillNetwork7Tuple(
    UINT applicationIndex;
    UINT userIndex;
 
-   DbgPrint("ProxyIntercept: Seen layerId: %d", inFixedValues->layerId);
-
    GetNetwork7TupleIndexesForLayer(
       inFixedValues->layerId,
       &localAddrIndex,
@@ -229,15 +228,25 @@ FillNetwork7Tuple(
 	  &userIndex
       );
 
-   packet->applicationId = NULL; 
+   packet->layerId = inFixedValues->layerId;
+
+   packet->applicationId = NULL;
    if (applicationIndex != UINT_MAX) {
 	   packet->applicationId = inFixedValues->incomingValue[applicationIndex].value.unicodeString;
 	   DbgPrint("ProxyIntercept: Application path set %p\n", packet->applicationId);
   }
    packet->userSid = NULL;
    if (userIndex != UINT_MAX) {
-	   packet->userSid = inFixedValues->incomingValue[userIndex].value.sid;
-	   DbgPrint("ProxyIntercept: User SID set %p\n", packet->userSid);
+	   if (inFixedValues->incomingValue[userIndex].value.tokenAccessInformation) {
+		   PTOKEN_ACCESS_INFORMATION tokenAccessInformation = (PTOKEN_ACCESS_INFORMATION) inFixedValues->incomingValue[userIndex].value.tokenAccessInformation->data;
+		   if (tokenAccessInformation->SidHash &&
+			   tokenAccessInformation->SidHash->SidAttr &&
+			   RtlValidSid(tokenAccessInformation->SidHash->SidAttr->Sid)) {
+			   DbgPrint("ProxyIntercept: Validated Sid\n");
+			   packet->userSid = tokenAccessInformation->SidHash->SidAttr->Sid;
+			   DbgPrint("ProxyIntercept: User SID set %p\n", packet->userSid);
+		   }
+	   }
    }
 
    if (addressFamily == AF_INET)

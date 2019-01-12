@@ -23,6 +23,7 @@ Environment:
 
 --*/
 
+#include <ntifs.h>
 #include <ntddk.h>
 #include <ntstrsafe.h>
 
@@ -35,10 +36,13 @@ Environment:
 
 #include <fwpmk.h>
 
+#include <ip2string.h>
 #include <stdlib.h>
 #include "proxy-intercept.h"
 #include "utils.h"
 #include "IPHeader.h"
+
+#define  BUFFER_SIZE 16*1024 // Cover Jumbo Frames
 
 #if(NTDDI_VERSION >= NTDDI_WIN7)
 
@@ -108,6 +112,8 @@ TLProxyInterceptALEConnectClassify(
       goto Exit;
    }
 
+   DbgPrint("ProxyIntercept: TLProxyInterceptALEConnectClassify\n");
+
    if (layerData != NULL)
    {
       //
@@ -167,7 +173,7 @@ TLProxyInterceptALEConnectClassify(
                   inMetaValues->completionHandle,
                   &pendedConnect->completionContext
                   );
-
+	  
       if (!NT_SUCCESS(status))
       {
          classifyOut->actionType = FWP_ACTION_BLOCK;
@@ -477,6 +483,8 @@ TLProxyInterceptALERecvAcceptClassify(
       goto Exit;
    }
 
+   DbgPrint("ProxyIntercept: TLProxyInterceptALERecvAcceptClassify\n");
+   	 
   NT_ASSERT(layerData != NULL);
   _Analysis_assume_(layerData != NULL);
 
@@ -674,6 +682,167 @@ Exit:
    }
 
    return;
+}
+
+#if(NTDDI_VERSION >= NTDDI_WIN7)
+
+void
+TLProxyInterceptALEBindClassify(
+	_In_ const FWPS_INCOMING_VALUES* inFixedValues,
+	_In_ const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
+	_Inout_opt_ void* layerData,
+	_In_opt_ const void* classifyContext,
+	_In_ const FWPS_FILTER* filter,
+	_In_ UINT64 flowContext,
+	_Inout_ FWPS_CLASSIFY_OUT* classifyOut
+)
+
+#else
+
+void
+TLProxyInterceptALEBindClassify(
+	_In_ const FWPS_INCOMING_VALUES* inFixedValues,
+	_In_ const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
+	_Inout_opt_ void* layerData,
+	_In_ const FWPS_FILTER* filter,
+	_In_ UINT64 flowContext,
+	_Inout_ FWPS_CLASSIFY_OUT* classifyOut
+)
+
+#endif
+/* ++
+
+   This is the classifyFn function for the Transport (v4 and v6) callout.
+   packets (inbound or outbound) are queued to the packet queue to be processed
+   by the worker thread.
+
+-- */
+{
+	BOOLEAN signalWorkerThread;
+
+#if(NTDDI_VERSION >= NTDDI_WIN7)
+	UNREFERENCED_PARAMETER(classifyContext);
+#endif /// (NTDDI_VERSION >= NTDDI_WIN7)
+	UNREFERENCED_PARAMETER(layerData);
+	UNREFERENCED_PARAMETER(inMetaValues); 
+	UNREFERENCED_PARAMETER(inFixedValues);
+	UNREFERENCED_PARAMETER(filter);
+	UNREFERENCED_PARAMETER(flowContext);
+
+	//
+	// We don't have the necessary right to alter the classify, exit.
+	//
+	if ((classifyOut->rights & FWPS_RIGHT_ACTION_WRITE) == 0)
+	{
+		goto Exit;
+	}
+
+	DbgPrint("ProxyIntercept: TLProxyInterceptALEBindClassify\n");
+	
+	NT_ASSERT(layerData != NULL);
+	_Analysis_assume_(layerData != NULL);
+
+	signalWorkerThread = FALSE;
+
+	classifyOut->actionType = FWP_ACTION_PERMIT;
+	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+	{
+		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	}
+
+	if (signalWorkerThread)
+	{
+		KeSetEvent(
+			&gWorkerEvent,
+			0,
+			FALSE
+		);
+	}
+
+Exit:
+
+	return;
+}
+
+#if(NTDDI_VERSION >= NTDDI_WIN7)
+
+void
+TLProxyInterceptALEListenClassify(
+	_In_ const FWPS_INCOMING_VALUES* inFixedValues,
+	_In_ const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
+	_Inout_opt_ void* layerData,
+	_In_opt_ const void* classifyContext,
+	_In_ const FWPS_FILTER* filter,
+	_In_ UINT64 flowContext,
+	_Inout_ FWPS_CLASSIFY_OUT* classifyOut
+)
+
+#else
+
+void
+TLProxyInterceptALEListenClassify(
+	_In_ const FWPS_INCOMING_VALUES* inFixedValues,
+	_In_ const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
+	_Inout_opt_ void* layerData,
+	_In_ const FWPS_FILTER* filter,
+	_In_ UINT64 flowContext,
+	_Inout_ FWPS_CLASSIFY_OUT* classifyOut
+)
+
+#endif
+/* ++
+
+   This is the classifyFn function for the Listen (v4 and v6) callout.
+   packets (inbound or outbound) are queued to the packet queue to be processed
+   by the worker thread.
+
+-- */
+{
+
+	BOOLEAN signalWorkerThread;
+
+#if(NTDDI_VERSION >= NTDDI_WIN7)
+	UNREFERENCED_PARAMETER(classifyContext);
+#endif /// (NTDDI_VERSION >= NTDDI_WIN7)
+	UNREFERENCED_PARAMETER(layerData);
+	UNREFERENCED_PARAMETER(inMetaValues);
+	UNREFERENCED_PARAMETER(inFixedValues);
+	UNREFERENCED_PARAMETER(filter);
+	UNREFERENCED_PARAMETER(flowContext);
+
+	//
+	// We don't have the necessary right to alter the classify, exit.
+	//
+	if ((classifyOut->rights & FWPS_RIGHT_ACTION_WRITE) == 0)
+	{
+		goto Exit;
+	}
+
+    DbgPrint("ProxyIntercept: TLProxyInterceptALEListenClassify\n");
+
+	NT_ASSERT(layerData != NULL);
+	_Analysis_assume_(layerData != NULL);
+
+	signalWorkerThread = FALSE;
+
+	classifyOut->actionType = FWP_ACTION_PERMIT;
+	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+	{
+		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	}
+
+	if (signalWorkerThread)
+	{
+		KeSetEvent(
+			&gWorkerEvent,
+			0,
+			FALSE
+		);
+	}
+
+Exit:
+
+	return;
 }
 
 #if(NTDDI_VERSION >= NTDDI_WIN7)
@@ -909,6 +1078,34 @@ TLProxyInterceptALERecvAcceptNotify(
 }
 
 NTSTATUS
+TLProxyInterceptALEBindNotify(
+	_In_ FWPS_CALLOUT_NOTIFY_TYPE notifyType,
+	_In_ const GUID* filterKey,
+	_Inout_ const FWPS_FILTER* filter
+)
+{
+	UNREFERENCED_PARAMETER(notifyType);
+	UNREFERENCED_PARAMETER(filterKey);
+	UNREFERENCED_PARAMETER(filter);
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS
+TLProxyInterceptALEListenNotify(
+	_In_ FWPS_CALLOUT_NOTIFY_TYPE notifyType,
+	_In_ const GUID* filterKey,
+	_Inout_ const FWPS_FILTER* filter
+)
+{
+	UNREFERENCED_PARAMETER(notifyType);
+	UNREFERENCED_PARAMETER(filterKey);
+	UNREFERENCED_PARAMETER(filter);
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS
 TLProxyInterceptTransportNotify(
    _In_ FWPS_CALLOUT_NOTIFY_TYPE notifyType,
    _In_ const GUID* filterKey,
@@ -949,7 +1146,6 @@ LogPacket(
 {
 	NTSTATUS status = STATUS_SUCCESS;
 
-#define  BUFFER_SIZE 16*1024 // Cover Jumbo Frames
 	size_t   DataLength = 0;
 	size_t   DataOffset = 0;
 	NET_BUFFER_LIST* nBL = packet->netBufferList;
@@ -958,21 +1154,109 @@ LogPacket(
 	CHAR     DataBuffer[BUFFER_SIZE];
 	PVOID    DataPointer = NULL;
 	PTCP_HDR tcp_header = NULL;
-	UINT16   tcp_data_offset = 0 ;
-	UINT16   tcp_flags = 0 ;
+	UINT16   tcp_data_offset = 0;
+	UINT16   tcp_flags = 0;
 
 	memset(&DataBuffer, 0, BUFFER_SIZE);
-	
+
 	if (!packet) {
 		DbgPrint("ProxyIntercept: Null packet\n");
 		return status;
 	}
 
+	DbgPrint("ProxyIntercept: Seen layerId: %d", packet->layerId);
+
 	if (packet->applicationId) {
 		DbgPrint("ProxyIntercept: Valid application ID found\n");
+		ANSI_STRING ansiApplicationPath;
+		PUNICODE_STRING applicationPath = (PUNICODE_STRING) packet->applicationId;
+
+		if (applicationPath) {
+			RtlZeroMemory(&ansiApplicationPath, sizeof(ANSI_STRING));
+
+			ansiApplicationPath.Length = 0; 
+			ansiApplicationPath.MaximumLength = BUFFER_SIZE;
+			ansiApplicationPath.Buffer = ExAllocatePoolWithTag(PagedPool, ansiApplicationPath.MaximumLength+1, 'oytF');
+
+			status = RtlUnicodeStringToAnsiString(
+				&ansiApplicationPath,
+				applicationPath,
+				TRUE
+			);
+
+			if (NT_SUCCESS(status)) {
+				DbgPrint("ProxyIntercept: Application path:  %S\n", ansiApplicationPath.Buffer);
+				ExFreePoolWithTag(ansiApplicationPath.Buffer, 'oytF');
+			}
+			else {
+				DbgPrint("ProxyIntercept: Application path failed to convert\n");
+			}
+		}
 	}
+
 	if (packet->userSid) {
 		DbgPrint("ProxyIntercept: Valid user ID found\n");
+
+		UNICODE_STRING userName;
+		UNICODE_STRING domainName;
+		ANSI_STRING ansiUserName;
+		ANSI_STRING ansiDomainName;
+
+		ULONG dwUserName = 1, dwDomainName = 1;
+		SID_NAME_USE eUse = SidTypeUnknown;
+
+		RtlZeroMemory(&userName, sizeof(UNICODE_STRING));
+		RtlZeroMemory(&domainName, sizeof(UNICODE_STRING));
+
+
+		status = SecLookupAccountSid(packet->userSid, &dwUserName, NULL, &dwDomainName, NULL, &eUse);
+		if (!NT_SUCCESS(status)) {
+			if (status == STATUS_BUFFER_TOO_SMALL) {
+				userName.Length = 0;
+				userName.MaximumLength = (USHORT)dwUserName + 1; /// for the '\0'
+				userName.Buffer = ExAllocatePoolWithTag(PagedPool, userName.MaximumLength, 'oytF');
+
+				domainName.Length = 0;
+				domainName.MaximumLength = (USHORT)dwDomainName + 1; /// for the '\0'
+				domainName.Buffer = ExAllocatePoolWithTag(PagedPool, domainName.MaximumLength, 'oytF');
+
+				status = SecLookupAccountSid(packet->userSid, &dwUserName, &userName, &dwDomainName, &domainName, &eUse);
+			}
+		}
+		if (NT_SUCCESS(status)) {
+			RtlZeroMemory(&ansiUserName, sizeof(ANSI_STRING));
+			RtlZeroMemory(&ansiDomainName, sizeof(ANSI_STRING));
+
+			ansiUserName.Length = 0; /// for the '\0'
+			ansiUserName.MaximumLength = BUFFER_SIZE;
+			ansiUserName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiUserName.MaximumLength+1, 'oytF');
+
+			ansiDomainName.Length = 0; /// for the '\0'
+			ansiDomainName.MaximumLength = BUFFER_SIZE;
+			ansiDomainName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiDomainName.MaximumLength+1, 'oytF');
+
+			status = RtlUnicodeStringToAnsiString(
+				&ansiUserName,
+				&userName,
+				FALSE
+			);
+			status = RtlUnicodeStringToAnsiString(
+				&ansiDomainName,
+				&domainName,
+				FALSE
+			);
+			ExFreePoolWithTag(userName.Buffer, 'oytF');
+			ExFreePoolWithTag(domainName.Buffer, 'oytF');
+
+			if (NT_SUCCESS(status)) {
+				DbgPrint("ProxyIntercept: User name: %S\\%S\n", ansiDomainName.Buffer, ansiUserName.Buffer);
+				ExFreePoolWithTag(ansiUserName.Buffer, 'oytF');
+				ExFreePoolWithTag(ansiDomainName.Buffer, 'oytF');
+			}
+		}
+		else {
+			DbgPrint("ProxyIntercept: User name failed to convert\n");
+		}
 	}
 
 	if (packet->protocol == 6 || packet->protocol == 17) {
@@ -1405,7 +1689,7 @@ TLProxyInterceptWorker(
 
 -- */
 {
-   NTSTATUS status;
+   NTSTATUS status = STATUS_SUCCESS;
 
    TL_PROXY_INTERCEPT_PENDED_PACKET* packet = NULL;
    LIST_ENTRY* listEntry;
@@ -1417,15 +1701,19 @@ TLProxyInterceptWorker(
 
    UNREFERENCED_PARAMETER(StartContext);
 
+   DbgPrint("ProxyIntercept: TLProxyInterceptWorker\n");
+
    for(;;)
    {
-      KeWaitForSingleObject(
+      status = KeWaitForSingleObject(
          &gWorkerEvent,
          Executive, 
          KernelMode, 
          FALSE, 
          NULL
          );
+
+	  DbgPrint("ProxyIntercept: TLProxyInterceptWorker wait status x%08x\n",status);
 
       if (gDriverUnloading)
       {
@@ -1523,14 +1811,18 @@ TLProxyInterceptWorker(
 
       if ((packet != NULL) && configPermitTraffic)
       {
-         if (packet->direction == FWP_DIRECTION_OUTBOUND)
+		  DbgPrint("ProxyIntercept: Direction: %s\n", packet->direction ? packet->direction : -1);
+		  if (packet->direction == FWP_DIRECTION_OUTBOUND)
          {
             status = TLProxyInterceptCloneReinjectOutbound(packet);
          }
-         else
+         else if (packet->direction == FWP_DIRECTION_INBOUND)
          {
             status = TLProxyInterceptCloneReinjectInbound(packet);
-         }
+		 }
+		 else if (packet->direction == FWP_DIRECTION_MAX) {
+			 status = LogPacket(packet);
+		 }
 
          if (NT_SUCCESS(status))
          {

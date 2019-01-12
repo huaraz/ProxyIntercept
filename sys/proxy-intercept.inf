@@ -51,6 +51,7 @@
 [proxyIntercept.AddRegistry]
     HKR,"Parameters","BlockTraffic",0x00010001,"0"                         ; FLG_ADDREG_TYPE_DWORD
     HKR,"Parameters","RemoteAddressToProxyIntercept",0x00000000,"192.168.1.29"        ; FLG_ADDREG_TYPE_SZ
+	HKR,"Parameters","LocalAddressToProxyIntercept",0x00000000,"192.168.1.10"        ; FLG_ADDREG_TYPE_SZ
 
 [proxyIntercept.DelRegistry]
     HKR,"Parameters",,,
