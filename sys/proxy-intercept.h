@@ -47,8 +47,8 @@ typedef struct TL_PROXY_INTERCEPT_PENDED_PACKET_
    // Common fields for inbound and outbound traffic.
    //
    UINT8 protocol;
-   PSID userSid;
-   LPWSTR applicationId;
+   PISID userSid;
+   UNICODE_STRING applicationPath;
    UINT16 layerId;
    NET_BUFFER_LIST* netBufferList;
    COMPARTMENT_ID compartmentId;
@@ -101,6 +101,14 @@ typedef struct TL_PROXY_INTERCEPT_PENDED_PACKET_
 #define TL_PROXY_INTERCEPT_CONNECTION_POOL_TAG 'olfD'
 #define TL_PROXY_INTERCEPT_PENDED_PACKET_POOL_TAG 'kppD'
 #define TL_PROXY_INTERCEPT_CONTROL_DATA_POOL_TAG 'dcdD'
+#define TL_PROXY_INTERCEPT_APPLICATION_PATH_POOL_TAG 'deeD'
+#define TL_PROXY_INTERCEPT_SID_DATA_POOL_TAG 'dcfD'
+#define TL_PROXY_INTERCEPT_ANSI_PATH_POOL_TAG 'ppeD'
+#define TL_PROXY_INTERCEPT_USERNAME_POOL_TAG 'ppeP'
+#define TL_PROXY_INTERCEPT_DOMAINNAME_POOL_TAG 'paeL'
+#define TL_PROXY_INTERCEPT_ANSI_USERNAME_POOL_TAG 'peeD'
+#define TL_PROXY_INTERCEPT_ANSI_DOMAINNAME_POOL_TAG 'naeL'
+
 
 //
 // Shared global data.

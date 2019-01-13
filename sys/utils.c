@@ -19,6 +19,8 @@ Environment:
 #include <ntddk.h>
 #include <wdf.h>
 
+#include <ntstrsafe.h>
+
 #pragma warning(push)
 #pragma warning(disable:4201)       // unnamed struct/union
 
@@ -241,11 +243,55 @@ FillNetwork7Tuple(
 
    packet->layerId = inFixedValues->layerId;
 
-   packet->applicationId = NULL;
+   RtlZeroMemory(&packet->applicationPath,sizeof(UNICODE_STRING));
    if (applicationIndex != UINT_MAX) {
-	   packet->applicationId = inFixedValues->incomingValue[applicationIndex].value.unicodeString;
-	   DbgPrint("ProxyIntercept: %s: Application path set %p\n", __FUNCTION__, packet->applicationId);
-  }
+	   PUNICODE_STRING uString = (PUNICODE_STRING)inFixedValues->incomingValue[applicationIndex].value.unicodeString;
+	   packet->applicationPath.Length = uString->Length;
+	   packet->applicationPath.MaximumLength = uString->MaximumLength;
+	   packet->applicationPath.Buffer = ExAllocatePoolWithTag(NonPagedPool, packet->applicationPath.MaximumLength+1, TL_PROXY_INTERCEPT_APPLICATION_PATH_POOL_TAG);
+
+	   RtlZeroMemory(packet->applicationPath.Buffer, packet->applicationPath.MaximumLength + 1);
+	   
+	   RtlCopyMemory(
+		   packet->applicationPath.Buffer,
+		   uString->Buffer,
+		   uString->Length
+	   );
+
+	   DbgPrint("ProxyIntercept: %s: Application path length %d\n", __FUNCTION__, uString->Length);
+	   DbgPrint("ProxyIntercept: %s: Application copied path length %d\n", __FUNCTION__, packet->applicationPath.Length);
+
+	   ANSI_STRING ansiApplicationPath;
+   
+	   if (packet->applicationPath.Length>0) {
+		   RtlZeroMemory(&ansiApplicationPath, sizeof(ANSI_STRING));
+
+		   ansiApplicationPath.Length = packet->applicationPath.MaximumLength;
+		   ansiApplicationPath.MaximumLength = packet->applicationPath.MaximumLength; //ANSI should be shorter than UNICODE
+		   ansiApplicationPath.Buffer = ExAllocatePoolWithTag(NonPagedPool, ansiApplicationPath.MaximumLength + 1, TL_PROXY_INTERCEPT_ANSI_PATH_POOL_TAG);
+
+		   RtlZeroMemory(ansiApplicationPath.Buffer, ansiApplicationPath.MaximumLength + 1);
+
+		   DbgPrint("ProxyIntercept: %s: ansiApplicationPath.Buffer %p\n", __FUNCTION__, ansiApplicationPath.Buffer);
+		   
+		   NTSTATUS status = RtlUnicodeStringToAnsiString(
+			   &ansiApplicationPath,
+			   &packet->applicationPath,
+			   TRUE
+		   );
+
+		   DbgPrint("ProxyIntercept: %s: Unicode Length:  %d Ansi Length: %d\n", __FUNCTION__, packet->applicationPath.Length, ansiApplicationPath.Length);
+
+		   if (NT_SUCCESS(status)) {
+			   DbgPrint("ProxyIntercept: %s: Application path: %s\n", __FUNCTION__, ansiApplicationPath.Buffer);
+			   DbgPrint("ProxyIntercept: %s: uString Buffer: %S\n", __FUNCTION__, uString->Buffer);
+		   }
+		   else {
+			   DbgPrint("ProxyIntercept: %s: Application path failed to convert x%08x \n", __FUNCTION__, status);
+		   }
+		   ExFreePoolWithTag(ansiApplicationPath.Buffer, TL_PROXY_INTERCEPT_ANSI_PATH_POOL_TAG);
+	   }	   
+   }
    packet->userSid = NULL;
    if (userIndex != UINT_MAX) {
 	   if (inFixedValues->incomingValue[userIndex].value.tokenAccessInformation) {
@@ -253,9 +299,88 @@ FillNetwork7Tuple(
 		   if (tokenAccessInformation->SidHash &&
 			   tokenAccessInformation->SidHash->SidAttr &&
 			   RtlValidSid(tokenAccessInformation->SidHash->SidAttr->Sid)) {
-			   DbgPrint("ProxyIntercept: %s: Validated Sid\n", __FUNCTION__);
-			   packet->userSid = tokenAccessInformation->SidHash->SidAttr->Sid;
+//			   DbgPrint("ProxyIntercept: %s: Validated Sid, Size: %d\n", __FUNCTION__, RtlLengthSid(tokenAccessInformation->SidHash->SidAttr->Sid));
+			   packet->userSid = ExAllocatePoolWithTag(NonPagedPool, RtlLengthSid(tokenAccessInformation->SidHash->SidAttr->Sid), TL_PROXY_INTERCEPT_SID_DATA_POOL_TAG);
+			   NTSTATUS status = RtlCopySid(
+				   RtlLengthSid(tokenAccessInformation->SidHash->SidAttr->Sid),
+				   packet->userSid,
+				   tokenAccessInformation->SidHash->SidAttr->Sid
+				);
+
+			   if (NT_SUCCESS(status)) {
+				   DbgPrint("ProxyIntercept: %s: User SID is valid after copy\n", __FUNCTION__);
+				   DbgPrint("ProxyIntercept: %s: User SID size %d\n", __FUNCTION__, RtlLengthSid(packet->userSid));
+			   }
+			   else {
+				   DbgPrint("ProxyIntercept: %s: User SID is NOT valid after copy x%08x\n", __FUNCTION__,status);
+			   }
 			   DbgPrint("ProxyIntercept: %s: User SID set %p\n", __FUNCTION__, packet->userSid);
+
+			   if (packet->userSid) {
+				   DbgPrint("ProxyIntercept: %s: Valid user ID found\n", __FUNCTION__);
+
+				   UNICODE_STRING userName;
+				   UNICODE_STRING domainName;
+				   ANSI_STRING ansiUserName;
+				   ANSI_STRING ansiDomainName;
+
+				   ULONG dwUserName = 1, dwDomainName = 1;
+				   SID_NAME_USE eUse = SidTypeUnknown;
+
+				   RtlZeroMemory(&userName, sizeof(UNICODE_STRING));
+				   RtlZeroMemory(&domainName, sizeof(UNICODE_STRING));
+
+				   status = SecLookupAccountSid(packet->userSid, &dwUserName, NULL, &dwDomainName, NULL, &eUse);
+				   if (!NT_SUCCESS(status)) {
+					   if (status == STATUS_BUFFER_TOO_SMALL) {
+						   userName.Length = 0;
+						   userName.MaximumLength = (USHORT)dwUserName + 1; /// for the '\0'
+						   userName.Buffer = ExAllocatePoolWithTag(NonPagedPool, userName.MaximumLength, TL_PROXY_INTERCEPT_USERNAME_POOL_TAG);
+
+						   domainName.Length = 0;
+						   domainName.MaximumLength = (USHORT)dwDomainName + 1; /// for the '\0'
+						   domainName.Buffer = ExAllocatePoolWithTag(NonPagedPool, domainName.MaximumLength, TL_PROXY_INTERCEPT_DOMAINNAME_POOL_TAG);
+
+						   status = SecLookupAccountSid(packet->userSid, &dwUserName, &userName, &dwDomainName, &domainName, &eUse);
+					   }
+				   }
+				   if (NT_SUCCESS(status)) {
+					   RtlZeroMemory(&ansiUserName, sizeof(ANSI_STRING));
+					   RtlZeroMemory(&ansiDomainName, sizeof(ANSI_STRING));
+
+					   ansiUserName.Length = 0; /// for the '\0'
+					   ansiUserName.MaximumLength = userName.MaximumLength; // ANSI should be same or shorter
+					   ansiUserName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiUserName.MaximumLength + 1, TL_PROXY_INTERCEPT_ANSI_USERNAME_POOL_TAG);
+
+					   ansiDomainName.Length = 0; /// for the '\0'
+					   ansiDomainName.MaximumLength = domainName.MaximumLength; // ANSI should be same or shorter
+					   ansiDomainName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiDomainName.MaximumLength + 1, TL_PROXY_INTERCEPT_ANSI_DOMAINNAME_POOL_TAG);
+
+					   status = RtlUnicodeStringToAnsiString(
+						   &ansiUserName,
+						   &userName,
+						   TRUE
+					   );
+					   status = RtlUnicodeStringToAnsiString(
+						   &ansiDomainName,
+						   &domainName,
+						   TRUE
+					   );
+					   ExFreePoolWithTag(userName.Buffer, TL_PROXY_INTERCEPT_USERNAME_POOL_TAG);
+					   ExFreePoolWithTag(domainName.Buffer, TL_PROXY_INTERCEPT_DOMAINNAME_POOL_TAG);
+
+					   if (NT_SUCCESS(status)) {
+						   DbgPrint("ProxyIntercept: %s: User name length: %d\n", __FUNCTION__, ansiDomainName.Length + ansiUserName.Length + 1);
+						   DbgPrint("ProxyIntercept: %s: User name: %s\\%s\n", __FUNCTION__, ansiDomainName.Buffer, ansiUserName.Buffer);
+					   }
+					   ExFreePoolWithTag(ansiUserName.Buffer, TL_PROXY_INTERCEPT_ANSI_USERNAME_POOL_TAG);
+					   ExFreePoolWithTag(ansiDomainName.Buffer, TL_PROXY_INTERCEPT_ANSI_DOMAINNAME_POOL_TAG);
+				   }
+				   else {
+					   DbgPrint("ProxyIntercept: %s: User name failed to convert\n", __FUNCTION__);
+				   }
+			   }
+
 		   }
 	   }
    }
@@ -321,6 +446,18 @@ FreePendedPacket(
                                                           // is done prior to freeing
                                                           // of the packet.
       FwpsCompleteOperation(packet->completionContext, NULL);
+   }
+   if (packet->userSid != NULL)
+   {
+	   ExFreePoolWithTag(packet->userSid, TL_PROXY_INTERCEPT_SID_DATA_POOL_TAG);
+	   packet->userSid = NULL;
+   }
+   if (packet->applicationPath.Buffer != NULL)
+   {
+	   ExFreePoolWithTag(packet->applicationPath.Buffer, TL_PROXY_INTERCEPT_APPLICATION_PATH_POOL_TAG);
+	   packet->applicationPath.Buffer = NULL;
+	   packet->applicationPath.Length = 0;
+	   packet->applicationPath.MaximumLength = 0;
    }
    ExFreePoolWithTag(packet, TL_PROXY_INTERCEPT_PENDED_PACKET_POOL_TAG);
 }

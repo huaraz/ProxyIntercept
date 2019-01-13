@@ -1165,8 +1165,7 @@ LogPacket(
 
 	DbgPrint("ProxyIntercept: %s\n", __FUNCTION__);
 	
-	memset(&DataBuffer, 0, BUFFER_SIZE);
-
+	RtlZeroMemory(&DataBuffer, BUFFER_SIZE);
 	if (!packet) {
 		DbgPrint("ProxyIntercept: %s: Null packet\n", __FUNCTION__);
 		return status;
@@ -1174,34 +1173,34 @@ LogPacket(
 
 	DbgPrint("ProxyIntercept: %s: WFP Packet layerId: %d", __FUNCTION__, packet->layerId);
 
-	if (packet->applicationId) {
-		DbgPrint("ProxyIntercept: %s: Valid application ID found\n", __FUNCTION__);
+	if (packet->applicationPath.Length > 0 ) {
 		ANSI_STRING ansiApplicationPath;
-		PUNICODE_STRING applicationPath = (PUNICODE_STRING) packet->applicationId;
+		
+		RtlZeroMemory(&ansiApplicationPath, sizeof(ANSI_STRING));
 
-		if (applicationPath) {
-			RtlZeroMemory(&ansiApplicationPath, sizeof(ANSI_STRING));
+		ansiApplicationPath.Length = 0; 
+		ansiApplicationPath.MaximumLength = packet->applicationPath.MaximumLength;
+		ansiApplicationPath.Buffer = ExAllocatePoolWithTag(NonPagedPool, ansiApplicationPath.MaximumLength+1, TL_PROXY_INTERCEPT_ANSI_PATH_POOL_TAG );
 
-			ansiApplicationPath.Length = 0; 
-			ansiApplicationPath.MaximumLength = BUFFER_SIZE;
-			ansiApplicationPath.Buffer = ExAllocatePoolWithTag(PagedPool, ansiApplicationPath.MaximumLength+1, 'oytF');
+		RtlZeroMemory(ansiApplicationPath.Buffer, ansiApplicationPath.MaximumLength+1);
 
-			status = RtlUnicodeStringToAnsiString(
-				&ansiApplicationPath,
-				applicationPath,
-				TRUE
-			);
+		status = RtlUnicodeStringToAnsiString(
+			&ansiApplicationPath,
+			&packet->applicationPath,
+			TRUE
+		);
 
-			if (NT_SUCCESS(status)) {
-				DbgPrint("ProxyIntercept: %s: Application path:  %S\n", __FUNCTION__, ansiApplicationPath.Buffer);
-				ExFreePoolWithTag(ansiApplicationPath.Buffer, 'oytF');
-			}
-			else {
-				DbgPrint("ProxyIntercept: %s: Application path failed to convert\n", __FUNCTION__);
-			}
+		if (NT_SUCCESS(status)) {
+			DbgPrint("ProxyIntercept: %s: Application path length: %d\n", __FUNCTION__, ansiApplicationPath.Length);
+			DbgPrint("ProxyIntercept: %s: Application path: %s\n", __FUNCTION__, ansiApplicationPath.Buffer);
 		}
+		else {
+			DbgPrint("ProxyIntercept: %s: Application path failed to convert x%08x \n", __FUNCTION__, status);
+		}
+		ExFreePoolWithTag(ansiApplicationPath.Buffer, TL_PROXY_INTERCEPT_ANSI_PATH_POOL_TAG);
 	}
 
+	
 	if (packet->userSid) {
 		DbgPrint("ProxyIntercept: %s: Valid user ID found\n", __FUNCTION__);
 
@@ -1216,17 +1215,16 @@ LogPacket(
 		RtlZeroMemory(&userName, sizeof(UNICODE_STRING));
 		RtlZeroMemory(&domainName, sizeof(UNICODE_STRING));
 
-
 		status = SecLookupAccountSid(packet->userSid, &dwUserName, NULL, &dwDomainName, NULL, &eUse);
 		if (!NT_SUCCESS(status)) {
 			if (status == STATUS_BUFFER_TOO_SMALL) {
 				userName.Length = 0;
 				userName.MaximumLength = (USHORT)dwUserName + 1; /// for the '\0'
-				userName.Buffer = ExAllocatePoolWithTag(PagedPool, userName.MaximumLength, 'oytF');
+				userName.Buffer = ExAllocatePoolWithTag(NonPagedPool, userName.MaximumLength, TL_PROXY_INTERCEPT_USERNAME_POOL_TAG);
 
 				domainName.Length = 0;
 				domainName.MaximumLength = (USHORT)dwDomainName + 1; /// for the '\0'
-				domainName.Buffer = ExAllocatePoolWithTag(PagedPool, domainName.MaximumLength, 'oytF');
+				domainName.Buffer = ExAllocatePoolWithTag(NonPagedPool, domainName.MaximumLength, TL_PROXY_INTERCEPT_DOMAINNAME_POOL_TAG);
 
 				status = SecLookupAccountSid(packet->userSid, &dwUserName, &userName, &dwDomainName, &domainName, &eUse);
 			}
@@ -1236,31 +1234,32 @@ LogPacket(
 			RtlZeroMemory(&ansiDomainName, sizeof(ANSI_STRING));
 
 			ansiUserName.Length = 0; /// for the '\0'
-			ansiUserName.MaximumLength = BUFFER_SIZE;
-			ansiUserName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiUserName.MaximumLength+1, 'oytF');
+			ansiUserName.MaximumLength = userName.MaximumLength; // ANSI should be same or shorter
+			ansiUserName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiUserName.MaximumLength+1, TL_PROXY_INTERCEPT_ANSI_USERNAME_POOL_TAG);
 
 			ansiDomainName.Length = 0; /// for the '\0'
-			ansiDomainName.MaximumLength = BUFFER_SIZE;
-			ansiDomainName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiDomainName.MaximumLength+1, 'oytF');
+			ansiDomainName.MaximumLength = domainName.MaximumLength; // ANSI should be same or shorter;
+			ansiDomainName.Buffer = ExAllocatePoolWithTag(PagedPool, ansiDomainName.MaximumLength+1, TL_PROXY_INTERCEPT_ANSI_DOMAINNAME_POOL_TAG);
 
 			status = RtlUnicodeStringToAnsiString(
 				&ansiUserName,
 				&userName,
-				FALSE
+				TRUE
 			);
 			status = RtlUnicodeStringToAnsiString(
 				&ansiDomainName,
 				&domainName,
-				FALSE
+				TRUE
 			);
-			ExFreePoolWithTag(userName.Buffer, 'oytF');
-			ExFreePoolWithTag(domainName.Buffer, 'oytF');
+			ExFreePoolWithTag(userName.Buffer, TL_PROXY_INTERCEPT_USERNAME_POOL_TAG);
+			ExFreePoolWithTag(domainName.Buffer, TL_PROXY_INTERCEPT_DOMAINNAME_POOL_TAG);
 
 			if (NT_SUCCESS(status)) {
-				DbgPrint("ProxyIntercept: %s: User name: %S\\%S\n", __FUNCTION__, ansiDomainName.Buffer, ansiUserName.Buffer);
-				ExFreePoolWithTag(ansiUserName.Buffer, 'oytF');
-				ExFreePoolWithTag(ansiDomainName.Buffer, 'oytF');
+				DbgPrint("ProxyIntercept: %s: User name length: %d\n", __FUNCTION__, ansiDomainName.Length+ansiUserName.Length+1);
+				DbgPrint("ProxyIntercept: %s: User name: %s\\%s\n", __FUNCTION__, ansiDomainName.Buffer, ansiUserName.Buffer);
 			}
+			ExFreePoolWithTag(ansiUserName.Buffer, TL_PROXY_INTERCEPT_ANSI_USERNAME_POOL_TAG);
+			ExFreePoolWithTag(ansiDomainName.Buffer, TL_PROXY_INTERCEPT_ANSI_DOMAINNAME_POOL_TAG);
 		}
 		else {
 			DbgPrint("ProxyIntercept: %s: User name failed to convert\n", __FUNCTION__);
@@ -1350,7 +1349,7 @@ LogPacket(
 				if ( DataPointer != NULL ) {
 					if (DataPointer != &DataBuffer) {
 						// Data is contiguous i.e. DataPointer points to the Data
-						memcpy(&DataBuffer, DataPointer, DataLength);
+						RtlCopyMemory(&DataBuffer, DataPointer, DataLength);
 					}
 					UINT DataStart = 0;
 					switch (packet->protocol) {
